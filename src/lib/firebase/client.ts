@@ -1,7 +1,7 @@
 import { initializeApp, getApps } from "firebase/app";
-import { getAuth } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
-import { getFunctions } from "firebase/functions";
+import { getAuth, connectAuthEmulator } from "firebase/auth";
+import { getFirestore, connectFirestoreEmulator } from "firebase/firestore";
+import { getFunctions, connectFunctionsEmulator } from "firebase/functions";
 import { env } from "@/lib/config/env";
 
 const firebaseConfig = {
@@ -18,3 +18,17 @@ export const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfi
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const functions = getFunctions(app, env.NEXT_PUBLIC_FIREBASE_REGION);
+
+// ---- Emulator wiring (client-side only) ----
+declare global {
+  // eslint-disable-next-line no-var
+  var __yksEmulatorsConnected: boolean | undefined;
+}
+
+if (typeof window !== "undefined" && env.NEXT_PUBLIC_USE_EMULATORS && !globalThis.__yksEmulatorsConnected) {
+  connectAuthEmulator(auth, "http://localhost:9099", { disableWarnings: true });
+  connectFirestoreEmulator(db, "localhost", 8080);
+  connectFunctionsEmulator(functions, "localhost", 5001);
+
+  globalThis.__yksEmulatorsConnected = true;
+}
