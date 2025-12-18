@@ -1,6 +1,13 @@
-import * as admin from "firebase-admin";
+// functions/src/utils/firestore.ts
+import { initializeApp, getApps } from "firebase-admin/app";
+import { getFirestore, FieldValue } from "firebase-admin/firestore";
+import { Timestamp } from "firebase-admin/firestore";
 
-export const app = admin.apps.length ? admin.app() : admin.initializeApp();
-export const db = admin.firestore();
-export const FieldValue = admin.firestore.FieldValue;
-export const Timestamp = admin.firestore.Timestamp;
+// Admin app init (safe singleton)
+export const app = getApps().length ? getApps()[0] : initializeApp();
+
+// Firestore
+export const db = getFirestore(app);
+
+// Helpers
+export { FieldValue, Timestamp };

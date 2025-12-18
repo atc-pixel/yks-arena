@@ -1,3 +1,4 @@
+// src/features/match/services/match.api.ts
 import { httpsCallable } from "firebase/functions";
 import { functions } from "@/lib/firebase/client";
 import type { ChoiceKey, MatchDoc, SymbolKey } from "../types";
@@ -17,20 +18,32 @@ export type SubmitAnswerResponse = {
   phase: MatchDoc["turn"]["phase"];
 };
 
+// Callable names (tek yerden yönetelim)
+const FN = {
+  createInvite: "matchCreateInvite",
+  joinInvite: "matchJoinInvite",
+  spin: "matchSpin",
+  submitAnswer: "matchSubmitAnswer",
+} as const;
+
 export async function createInvite() {
-  const fn = httpsCallable<void, CreateInviteResponse>(functions, "matchCreateInvite");
+  const fn = httpsCallable<void, CreateInviteResponse>(functions, FN.createInvite);
   const res = await fn();
   return res.data;
 }
 
+/**
+ * Lobby UI basit kalsın diye sadece string alıyoruz.
+ * Backend { code } bekliyor.
+ */
 export async function joinInvite(code: string) {
-  const fn = httpsCallable<{ code: string }, JoinInviteResponse>(functions, "matchJoinInvite");
+  const fn = httpsCallable<{ code: string }, JoinInviteResponse>(functions, FN.joinInvite);
   const res = await fn({ code });
   return res.data;
 }
 
 export async function spin(matchId: string) {
-  const fn = httpsCallable<{ matchId: string }, SpinResponse>(functions, "matchSpin");
+  const fn = httpsCallable<{ matchId: string }, SpinResponse>(functions, FN.spin);
   const res = await fn({ matchId });
   return res.data;
 }
@@ -38,7 +51,7 @@ export async function spin(matchId: string) {
 export async function submitAnswer(matchId: string, answer: ChoiceKey) {
   const fn = httpsCallable<{ matchId: string; answer: ChoiceKey }, SubmitAnswerResponse>(
     functions,
-    "matchSubmitAnswer"
+    FN.submitAnswer
   );
   const res = await fn({ matchId, answer });
   return res.data;

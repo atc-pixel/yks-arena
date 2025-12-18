@@ -1,0 +1,11 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.matchSubmitAnswer = exports.matchSpin = exports.matchJoinInvite = exports.matchCreateInvite = void 0;
+var createInvite_1 = require("./match/createInvite");
+Object.defineProperty(exports, "matchCreateInvite", { enumerable: true, get: function () { return createInvite_1.matchCreateInvite; } });
+var joinInvite_1 = require("./match/joinInvite");
+Object.defineProperty(exports, "matchJoinInvite", { enumerable: true, get: function () { return joinInvite_1.matchJoinInvite; } });
+var spin_1 = require("./match/spin");
+Object.defineProperty(exports, "matchSpin", { enumerable: true, get: function () { return spin_1.matchSpin; } });
+var submitAnswer_1 = require("./match/submitAnswer");
+Object.defineProperty(exports, "matchSubmitAnswer", { enumerable: true, get: function () { return submitAnswer_1.matchSubmitAnswer; } });

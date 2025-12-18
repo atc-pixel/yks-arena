@@ -2,177 +2,234 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { doc, getDoc } from "firebase/firestore";
 
-import { useAnonAuth } from "@/features/auth/useAnonAuth";
+import { auth } from "@/lib/firebase/client";
 import { useMatch } from "@/features/match/hooks/useMatch";
 import { spin, submitAnswer } from "@/features/match/services/match.api";
-import type { ChoiceKey, Question, SymbolKey } from "@/features/match/types";
+import type { ChoiceKey } from "@/features/match/types";
 
-import { db } from "@/lib/firebase/client";
-import { TurnTimer } from "@/components/game/TurnTimer";
-import { QuestionCard } from "@/components/game/QuestionCard";
-import { Choices } from "@/components/game/Choices";
+// Senin projende bu componentler varsa kalsın; yoksa alttaki usage'ları sil.
+// import TurnTimer from "@/features/match/components/TurnTimer";
+// import QuestionCard from "@/features/match/components/QuestionCard";
 
-function symbolLabel(s: SymbolKey) {
-  // şimdilik 4 Türkçe sembol
-  return s;
+function cx(...xs: Array<string | false | null | undefined>) {
+  return xs.filter(Boolean).join(" ");
 }
 
 export default function MatchPage() {
-  const router = useRouter();
   const params = useParams<{ matchId: string }>();
   const matchId = params.matchId;
+  const router = useRouter();
 
-  const { ready, user } = useAnonAuth();
+  // ✅ HOOKS: her zaman aynı sırada
   const { match, loading } = useMatch(matchId);
 
-  const [question, setQuestion] = useState<Question | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState<"spin" | "answer" | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  const myUid = user?.uid ?? "";
+  const myUid = auth.currentUser?.uid ?? null;
 
-  const isMyTurn = !!match && match.turn.currentUid === myUid;
-  const phase = match?.turn.phase ?? "SPIN";
-  const activeQuestionId = match?.turn.activeQuestionId ?? null;
+  // ✅ match gelmese bile hook çalışır (safe fallback)
+  const players = (match?.players ?? []) as string[];
+  const oppUid = useMemo(() => {
+    if (!myUid) return null;
+    return players.find((u) => u !== myUid) ?? null;
+  }, [players, myUid]);
 
-  // active question fetch
+  const myState = match?.stateByUid?.[myUid ?? ""] as any;
+  const oppState = match?.stateByUid?.[oppUid ?? ""] as any;
+
+  // ✅ useMemo artık conditional değil, her render’da çalışır
+  const deadlineMs = useMemo(() => {
+    // MVP: gerçek deadline yoksa stabil bir değer dön
+    // Date.now() her render’da değiştiği için hydration vs değil, ama hook order için sorun değil.
+    // Yine de "stabil" olsun diye matchId bazlı pseudo bir süre üretelim.
+    const base = Date.now();
+    return base + 80_000;
+  }, [matchId]);
+
+  // Match bitti ise results'a yönlendirme (varsa)
   useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      if (!activeQuestionId) {
-        setQuestion(null);
-        return;
-      }
-      const qRef = doc(db, "questions", activeQuestionId);
-      const snap = await getDoc(qRef);
-      if (!snap.exists()) return;
-      if (cancelled) return;
-      setQuestion({ id: snap.id, ...(snap.data() as any) });
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [activeQuestionId]);
+    if (match?.status === "FINISHED") {
+      router.push(`/results/${matchId}`);
+    }
+  }, [match?.status, matchId, router]);
 
-  if (!ready) return <div className="opacity-70">Hazırlanıyor…</div>;
-  if (loading) return <div className="opacity-70">Maç yükleniyor…</div>;
-  if (!match) return <div>Maç bulunamadı.</div>;
-
-  if (match.status === "FINISHED") {
-    router.replace(`/results/${matchId}`);
-    return null;
+  // ✅ Early returnlar HOOK'lardan sonra
+  if (loading) {
+    return (
+      <main className="min-h-dvh bg-neutral-950 text-neutral-100">
+        <div className="mx-auto max-w-3xl px-4 py-10">
+          <div className="rounded-2xl bg-neutral-900/60 p-5 ring-1 ring-neutral-800">
+            Yükleniyor...
+          </div>
+        </div>
+      </main>
+    );
   }
 
-  const myState = match.stateByUid?.[myUid];
-  const oppUid = match.players.find((p) => p !== myUid) ?? "";
-  const oppState = match.stateByUid?.[oppUid];
+  if (!match) {
+    return (
+      <main className="min-h-dvh bg-neutral-950 text-neutral-100">
+        <div className="mx-auto max-w-3xl px-4 py-10">
+          <div className="rounded-2xl border border-red-500/30 bg-red-500/10 p-5 text-red-200">
+            Match bulunamadı.
+          </div>
+        </div>
+      </main>
+    );
+  }
 
-  const deadlineMs = useMemo(() => {
-    // Bu MVP’de deadline’ı UI’da “gösterim” amaçlı tutmak istersen ileride ekleriz.
-    // Şimdilik TurnTimer boş kalmasın diye 80s döndürüyorum.
-    return Date.now() + 80_000;
-  }, [match.turn.phase, match.turn.currentUid, match.turn.activeQuestionId]);
+  const isMyTurn = match.turn?.currentUid === myUid;
+  const phase = match.turn?.phase; // "SPIN" | "QUESTION"
+  const activeQuestionId = match.turn?.activeQuestionId;
+
+  const onSpin = async () => {
+    if (!isMyTurn) return;
+    setError(null);
+    setBusy("spin");
+    try {
+      await spin(matchId);
+    } catch (e: any) {
+      console.error(e);
+      setError(e?.message || "Spin hatası (functions).");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const onAnswer = async (answer: ChoiceKey) => {
+    if (!isMyTurn) return;
+    setError(null);
+    setBusy("answer");
+    try {
+      await submitAnswer(matchId, answer);
+    } catch (e: any) {
+      console.error(e);
+      setError(e?.message || "Cevap gönderilemedi (functions).");
+    } finally {
+      setBusy(null);
+    }
+  };
 
   return (
-    <div className="space-y-3">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="text-sm opacity-70">
-          {isMyTurn ? (
-            <span className="text-emerald-400 font-semibold">Sıra sende</span>
-          ) : (
-            <span className="text-amber-300 font-semibold">Rakipte</span>
-          )}
-        </div>
-        <TurnTimer deadlineMs={deadlineMs} />
-      </div>
-
-      {/* States */}
-      <div className="grid grid-cols-2 gap-2">
-        <div className="rounded-2xl bg-neutral-900 p-3">
-          <div className="text-xs opacity-70">Sen</div>
-          <div className="text-sm">❤️ {myState?.lives ?? 0} · ⭐ {myState?.points ?? 0}</div>
-          <div className="mt-2 text-xs opacity-70">Semboller</div>
-          <div className="mt-1 flex flex-wrap gap-1">
-            {(myState?.symbols ?? []).map((s) => (
-              <span key={s} className="rounded-lg bg-neutral-800 px-2 py-1 text-xs">
-                {symbolLabel(s)}
-              </span>
-            ))}
-          </div>
-        </div>
-
-        <div className="rounded-2xl bg-neutral-900 p-3">
-          <div className="text-xs opacity-70">Rakip</div>
-          <div className="text-sm">❤️ {oppState?.lives ?? 0} · ⭐ {oppState?.points ?? 0}</div>
-          <div className="mt-2 text-xs opacity-70">Semboller</div>
-          <div className="mt-1 flex flex-wrap gap-1">
-            {(oppState?.symbols ?? []).map((s) => (
-              <span key={s} className="rounded-lg bg-neutral-800 px-2 py-1 text-xs">
-                {symbolLabel(s)}
-              </span>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* Phase UI */}
-      {phase === "SPIN" ? (
-        <div className="rounded-2xl bg-neutral-900 p-4 space-y-3">
-          <div className="text-sm opacity-80">
-            Şimdilik çark <span className="font-semibold">sadece Türkçe</span>. (Animasyon sonra)
+    <main className="min-h-dvh bg-neutral-950 text-neutral-100">
+      <div className="mx-auto max-w-3xl px-4 py-10">
+        <div className="mb-6 flex items-center justify-between gap-3">
+          <div>
+            <div className="text-xs text-neutral-400">Match</div>
+            <div className="font-mono text-sm">{matchId}</div>
           </div>
 
-          <button
-            className="w-full rounded-2xl bg-white px-4 py-3 text-black font-semibold disabled:opacity-60"
-            disabled={!isMyTurn || busy}
-            onClick={async () => {
-              setBusy(true);
-              try {
-                await spin(matchId);
-              } finally {
-                setBusy(false);
-              }
-            }}
+          <div
+            className={cx(
+              "rounded-full px-3 py-1 text-xs font-semibold ring-1",
+              isMyTurn
+                ? "bg-emerald-500/20 text-emerald-200 ring-emerald-500/30"
+                : "bg-neutral-900 text-neutral-300 ring-neutral-800"
+            )}
           >
-            Çarkı Çevir
-          </button>
-
-          {!isMyTurn && <div className="text-xs opacity-60">Rakip çarkı çeviriyor…</div>}
+            {isMyTurn ? "Sıra sende" : "Rakipte"}
+          </div>
         </div>
-      ) : (
-        <div className="space-y-3">
-          <div className="rounded-2xl bg-neutral-900 p-3 text-sm">
-            Hedef sembol:{" "}
-            <span className="font-semibold">
-              {match.turn.challengeSymbol ? symbolLabel(match.turn.challengeSymbol) : "—"}
-            </span>{" "}
-            · Streak: <span className="font-semibold">{match.turn.streak}</span>/2
+
+        {error && (
+          <div className="mb-4 rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+            {error}
+          </div>
+        )}
+
+        <section className="rounded-2xl bg-neutral-900/60 p-5 ring-1 ring-neutral-800">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-xs text-neutral-400">Phase</div>
+              <div className="text-lg font-semibold">{phase}</div>
+            </div>
+
+            <div className="text-right">
+              <div className="text-xs text-neutral-400">Timer (MVP)</div>
+              <div className="text-sm font-mono">{deadlineMs}</div>
+            </div>
           </div>
 
-          <QuestionCard text={question?.question ?? "Soru yükleniyor…"} />
+          <div className="mt-4 grid gap-3 md:grid-cols-2">
+            <div className="rounded-2xl bg-neutral-950/60 p-4 ring-1 ring-neutral-800">
+              <div className="text-xs text-neutral-400">Sen</div>
+              <div className="mt-1 font-mono text-xs">{myUid ?? "—"}</div>
+              <div className="mt-3 text-sm text-neutral-300">
+                Lives: <span className="font-semibold">{myState?.lives ?? "—"}</span> • Points:{" "}
+                <span className="font-semibold">{myState?.points ?? "—"}</span>
+              </div>
+            </div>
 
-          <Choices
-            locked={!isMyTurn || busy || !question}
-            choices={
-              (question?.choices as any) ?? { A: "…", B: "…", C: "…", D: "…", E: "…" }
-            }
-            onPick={async (k: ChoiceKey) => {
-              if (!isMyTurn || !question) return;
-              setBusy(true);
-              try {
-                const res = await submitAnswer(matchId, k);
-                if (res.status === "FINISHED") router.push(`/results/${matchId}`);
-              } finally {
-                setBusy(false);
-              }
-            }}
-          />
+            <div className="rounded-2xl bg-neutral-950/60 p-4 ring-1 ring-neutral-800">
+              <div className="text-xs text-neutral-400">Rakip</div>
+              <div className="mt-1 font-mono text-xs">{oppUid ?? "—"}</div>
+              <div className="mt-3 text-sm text-neutral-300">
+                Lives: <span className="font-semibold">{oppState?.lives ?? "—"}</span> • Points:{" "}
+                <span className="font-semibold">{oppState?.points ?? "—"}</span>
+              </div>
+            </div>
+          </div>
 
-          {!isMyTurn && <div className="text-xs opacity-60">Rakip cevaplıyor…</div>}
-        </div>
-      )}
-    </div>
+          <div className="mt-5 flex flex-wrap gap-3">
+            <button
+              onClick={onSpin}
+              disabled={!isMyTurn || busy !== null || phase !== "SPIN"}
+              className={cx(
+                "rounded-xl px-4 py-3 text-sm font-semibold",
+                "bg-emerald-500 text-neutral-950 hover:bg-emerald-400",
+                "disabled:opacity-60 disabled:cursor-not-allowed"
+              )}
+            >
+              {busy === "spin" ? "Çevriliyor..." : "Çark Çevir"}
+            </button>
+
+            <button
+              onClick={() => onAnswer("A")}
+              disabled={!isMyTurn || busy !== null || phase !== "QUESTION" || !activeQuestionId}
+              className="rounded-xl bg-neutral-100 px-4 py-3 text-sm font-semibold text-neutral-950 disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              A
+            </button>
+            <button
+              onClick={() => onAnswer("B")}
+              disabled={!isMyTurn || busy !== null || phase !== "QUESTION" || !activeQuestionId}
+              className="rounded-xl bg-neutral-100 px-4 py-3 text-sm font-semibold text-neutral-950 disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              B
+            </button>
+            <button
+              onClick={() => onAnswer("C")}
+              disabled={!isMyTurn || busy !== null || phase !== "QUESTION" || !activeQuestionId}
+              className="rounded-xl bg-neutral-100 px-4 py-3 text-sm font-semibold text-neutral-950 disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              C
+            </button>
+            <button
+              onClick={() => onAnswer("D")}
+              disabled={!isMyTurn || busy !== null || phase !== "QUESTION" || !activeQuestionId}
+              className="rounded-xl bg-neutral-100 px-4 py-3 text-sm font-semibold text-neutral-950 disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              D
+            </button>
+            <button
+              onClick={() => onAnswer("E")}
+              disabled={!isMyTurn || busy !== null || phase !== "QUESTION" || !activeQuestionId}
+              className="rounded-xl bg-neutral-100 px-4 py-3 text-sm font-semibold text-neutral-950 disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              E
+            </button>
+          </div>
+        </section>
+
+        <details className="mt-6 rounded-2xl bg-neutral-900/40 p-4 ring-1 ring-neutral-800">
+          <summary className="cursor-pointer text-sm text-neutral-300">Debug (match raw)</summary>
+          <pre className="mt-3 overflow-auto text-xs text-neutral-300">
+            {JSON.stringify(match, null, 2)}
+          </pre>
+        </details>
+      </div>
+    </main>
   );
 }

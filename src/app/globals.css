@@ -1,0 +1,12 @@
+@import "tailwindcss";
+
+/* Optional: küçük global iyileştirmeler */
+html,
+body {
+  height: 100%;
+}
+
+body {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}

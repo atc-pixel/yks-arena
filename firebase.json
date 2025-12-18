@@ -1,5 +1,7 @@
 {
-  "functions": [{ "source": "functions" }],
+  "functions": {
+    "source": "functions"
+  },
   "emulators": {
     "auth": { "port": 9099 },
     "firestore": { "port": 8080 },
