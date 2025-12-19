@@ -16,7 +16,9 @@ export type Question = {
 
 export type MatchStatus = "WAITING" | "ACTIVE" | "FINISHED" | "CANCELLED";
 
-export type SymbolKey = "TR1" | "TR2" | "TR3" | "TR4";
+export type SymbolKey = "BILIM" | "COGRAFYA" | "SPOR" | "MATEMATIK";
+export const ALL_SYMBOLS: SymbolKey[] = ["BILIM", "COGRAFYA", "SPOR", "MATEMATIK"];
+
 
 export type PlayerState = {
   lives: number;          // 5
@@ -26,7 +28,8 @@ export type PlayerState = {
   answeredCount: number;  // perfect run için
 };
 
-export type TurnPhase = "SPIN" | "QUESTION";
+export type TurnPhase = "SPIN" | "QUESTION" | "END";
+
 
 export type MatchDoc = {
   createdAt: any;
@@ -35,16 +38,30 @@ export type MatchDoc = {
   players: string[]; // [uid1, uid2]
 
   turn: {
-    currentUid: string;
-    phase: TurnPhase;
-    challengeSymbol: SymbolKey | null;
-    streak: 0 | 1; // aynı sembolde ardışık doğru
-    activeQuestionId: string | null;
-    usedQuestionIds: string[];
-  };
+  currentUid: string;
+  phase: TurnPhase;
+  challengeSymbol: SymbolKey | null;
+  streak: number; // 0|1 kilitliyse sembol kazanımı için engel olur, number yapıyoruz
+  activeQuestionId: string | null;
+  usedQuestionIds: string[];
+  lastResult?: TurnLastResult | null;
+};
+
 
   stateByUid: Record<string, PlayerState>;
 
   winnerUid?: string;
   endedReason?: string;
 };
+
+export type TurnLastResult = {
+  uid: string;
+  questionId: string;
+  symbol: SymbolKey;
+  answer: ChoiceKey;
+  correctAnswer: ChoiceKey;
+  isCorrect: boolean;
+  earnedSymbol: SymbolKey | null;
+  at: number;
+};
+

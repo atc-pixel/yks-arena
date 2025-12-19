@@ -2,17 +2,18 @@
 
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { db } from "../utils/firestore";
-import { ALL_SYMBOLS, type SymbolKey, DEFAULT_CATEGORY } from "../shared/constants";
+import { ALL_SYMBOLS, type SymbolKey } from "../shared/constants";
+import crypto from "node:crypto";
 
 /**
- * Generates a lexicographically sortable random hash string.
- * We store question.randomHash as a fixed-length string (e.g. 16 chars).
- * This produces a uniform-ish distribution for range queries.
+ * IMPORTANT:
+ * - Seed script randomHash'ı hex (0-9a-f) ve 12 chars üretmişti.
+ * - Burada da aynı formatı üretelim ki range queries düzgün çalışsın.
  */
-function genRandomHash(len = 16): string {
-  // base36 -> [0-9a-z], pad to fixed length
-  const s = Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
-  return s.slice(0, len).padEnd(len, "0");
+function genRandomHashHex(len = 12): string {
+  // 6 bytes => 12 hex chars
+  const bytes = crypto.randomBytes(Math.ceil(len / 2));
+  return bytes.toString("hex").slice(0, len);
 }
 
 function pickRandom<T>(arr: readonly T[]): T {
@@ -20,11 +21,10 @@ function pickRandom<T>(arr: readonly T[]): T {
 }
 
 /**
- * Optimized random question fetch:
- * - 1 doc read (ideally) using where(randomHash >= r).orderBy(randomHash).limit(1)
- * - If empty, wrap-around with where(randomHash < r).orderBy(randomHash).limit(1)
- *
- * Also attempts to avoid usedQuestionIds with a few retries (still O(1) reads per attempt).
+ * Optimized random question fetch (transaction-safe):
+ * - where(randomHash >= r) orderBy(randomHash) limit(1)
+ * - wrap-around: where(randomHash < r) orderBy(randomHash) limit(1)
+ * - retry a few times to avoid usedQuestionIds
  */
 async function pickRandomQuestionIdTx(params: {
   tx: FirebaseFirestore.Transaction;
@@ -32,10 +32,10 @@ async function pickRandomQuestionIdTx(params: {
   used: Set<string>;
   maxAttempts?: number;
 }): Promise<string> {
-  const { tx, category, used, maxAttempts = 4 } = params;
+  const { tx, category, used, maxAttempts = 6 } = params;
 
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
-    const r = genRandomHash(16);
+    const r = genRandomHashHex(12);
 
     // First try: >= r
     let q = db
@@ -65,11 +65,13 @@ async function pickRandomQuestionIdTx(params: {
 
     const id = snap.docs[0].id;
     if (!used.has(id)) return id;
-
-    // Collision with used question -> retry with another random hash.
   }
 
-  throw new HttpsError("resource-exhausted", "No unused questions available (random selection retries exhausted).");
+  // Temelden doğru hata: hangi kategori tükendi?
+  throw new HttpsError(
+    "resource-exhausted",
+    `No unused questions available for category "${category}" (random selection retries exhausted).`
+  );
 }
 
 export const matchSpin = onCall(async (req) => {
@@ -96,11 +98,10 @@ export const matchSpin = onCall(async (req) => {
 
     // --- CRITICAL RULE: preserve symbol pool logic ---
     const owned: SymbolKey[] = (myState.symbols ?? []) as SymbolKey[];
-    const available = ALL_SYMBOLS.filter((s) => !owned.includes(s)); // keep as-is per requirement
+    const available = ALL_SYMBOLS.filter((s) => !owned.includes(s));
     // --------------------------------------------------
 
     if (available.length === 0) {
-      // Safety fallback: already has all symbols
       tx.update(matchRef, {
         status: "FINISHED",
         winnerUid: uid,
@@ -109,17 +110,18 @@ export const matchSpin = onCall(async (req) => {
       return { matchId, symbol: ALL_SYMBOLS[0], questionId: "" };
     }
 
+    // ✅ Symbol now IS the category
     const symbol = pickRandom(available);
 
     const usedArr: string[] = match.turn?.usedQuestionIds ?? [];
     const usedSet = new Set<string>(usedArr);
 
-    // Random question (1 doc read per attempt, wrap-around is still 1 extra read only when needed)
+    // ✅ Pull question from the symbol/category pool
     const questionId = await pickRandomQuestionIdTx({
       tx,
-      category: DEFAULT_CATEGORY,
+      category: symbol,
       used: usedSet,
-      maxAttempts: 4,
+      maxAttempts: 6,
     });
 
     tx.update(matchRef, {
