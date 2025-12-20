@@ -45,6 +45,8 @@ export type MatchDoc = {
   activeQuestionId: string | null;
   usedQuestionIds: string[];
   lastResult?: TurnLastResult | null;
+  streakSymbol?: SymbolKey | null;
+
 };
 
 

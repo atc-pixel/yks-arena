@@ -33,6 +33,7 @@ exports.matchCreateInvite = (0, https_1.onCall)(async (req) => {
             streak: 0,
             activeQuestionId: null,
             usedQuestionIds: [],
+            streakSymbol: null,
         },
         stateByUid: {
             [uid]: {

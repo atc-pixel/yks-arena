@@ -9,7 +9,8 @@ import * as admin from "firebase-admin";
 dotenv.config({ path: path.join(process.cwd(), ".env.local") });
 
 type ChoiceKey = "A" | "B" | "C" | "D" | "E";
-type Category = "MAT" | "TURKCE" | "FEN" | "SOSYAL";
+// Current game categories/symbols
+type Category = "BILIM" | "COGRAFYA" | "SPOR" | "MATEMATIK";
 
 function getEnv(name: string) {
   const v = process.env[name];
@@ -26,8 +27,19 @@ function normalizeAnswer(raw: unknown): ChoiceKey | null {
 
 function normalizeCategory(raw: unknown): Category {
   const s = String(raw ?? "").trim().toUpperCase();
-  if (s === "MAT" || s === "TURKCE" || s === "FEN" || s === "SOSYAL") return s;
-  return "TURKCE"; // default (senin şu anki setup)
+
+  // Accept both "new" and legacy category labels from CSV.
+  // New (preferred): BILIM, COGRAFYA, SPOR, MATEMATIK
+  if (s === "BILIM" || s === "COGRAFYA" || s === "SPOR" || s === "MATEMATIK") return s;
+
+  // Legacy mapping (if your CSV still uses these):
+  // MAT -> MATEMATIK, FEN -> BILIM, SOSYAL -> COGRAFYA, TURKCE -> COGRAFYA (fallback)
+  if (s === "MAT") return "MATEMATIK";
+  if (s === "FEN") return "BILIM";
+  if (s === "SOSYAL") return "COGRAFYA";
+  if (s === "TURKCE") return "COGRAFYA";
+
+  return "BILIM";
 }
 
 function toBool(raw: unknown, fallback: boolean) {
@@ -161,6 +173,9 @@ async function main() {
 
     const docId = makeDocId({ category, questionNumber, question });
     const randomHash = stableRandomHashFromId(docId, 16);
+    // Random ID pattern (0..9,999,999). Generated at import time.
+    // This makes the emulator seed immediately compatible with scalable random selection.
+    const randomId = Math.floor(Math.random() * 10_000_000);
 
     const ref = db.collection("questions").doc(docId);
 
@@ -179,6 +194,8 @@ async function main() {
 
         // Critical for random selection
         randomHash,
+        randomId,
+      
 
         source: "csv_seed",
         updatedAt: now,

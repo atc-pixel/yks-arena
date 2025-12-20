@@ -27,6 +27,11 @@ function randomHashFor(q) {
   return stableHash(base, 12);
 }
 
+// Random ID pattern: 0..9,999,999
+function randomId() {
+  return Math.floor(Math.random() * 10000000);
+}
+
 function q(category, question, choices, answer) {
   return { category, question, choices, answer };
 }
@@ -121,6 +126,7 @@ async function main() {
       answer: qd.answer,
       isActive: true,
       randomHash: randomHashFor(qd),
+      randomId: randomId(),
       createdAt: now,
     });
     inBatch++;
