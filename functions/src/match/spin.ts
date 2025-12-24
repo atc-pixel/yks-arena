@@ -1,6 +1,6 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { db } from "../utils/firestore";
-import { ALL_SYMBOLS, type SymbolKey, DEFAULT_CATEGORY } from "../shared/constants";
+import { ALL_SYMBOLS, type SymbolKey } from "../shared/constants";
 
 const RANDOM_ID_MAX = 10_000_000;
 
@@ -13,11 +13,8 @@ function pickRandom<T>(arr: readonly T[]): T {
 }
 
 /**
- * Pick a random question ID using Random ID Inequality pattern.
- * - category == X
- * - randomId >= r (ASC, limit 1)
- * - fallback: randomId < r (DESC, limit 1)
- * - retry if used
+ * Random ID Inequality pattern inside a transaction.
+ * Avoids usedQuestionIds with retries.
  */
 async function pickRandomQuestionIdTx(params: {
   tx: FirebaseFirestore.Transaction;
@@ -25,12 +22,12 @@ async function pickRandomQuestionIdTx(params: {
   used: Set<string>;
   maxAttempts?: number;
 }): Promise<string> {
-  const { tx, category, used, maxAttempts = 10 } = params;
+  const { tx, category, used, maxAttempts = 12 } = params;
 
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     const r = randInt(RANDOM_ID_MAX);
 
-    // Primary query (>= r)
+    // >= r (ASC)
     let q = db
       .collection("questions")
       .where("isActive", "==", true)
@@ -41,7 +38,7 @@ async function pickRandomQuestionIdTx(params: {
 
     let snap = await tx.get(q);
 
-    // Wrap-around (< r)
+    // wrap-around: < r (DESC)
     if (snap.empty) {
       q = db
         .collection("questions")
@@ -81,19 +78,18 @@ export const matchSpin = onCall(async (req) => {
 
     const match = snap.data() as any;
 
-    if (match.status !== "ACTIVE")
-      throw new HttpsError("failed-precondition", "Match not active");
-
-    if (match.turn?.phase !== "SPIN")
-      throw new HttpsError("failed-precondition", "Not in SPIN phase");
-
-    if (match.turn?.currentUid !== uid)
-      throw new HttpsError("failed-precondition", "Not your turn");
+    if (match.status !== "ACTIVE") throw new HttpsError("failed-precondition", "Match not active");
+    if (match.turn?.phase !== "SPIN") throw new HttpsError("failed-precondition", "Not in SPIN phase");
+    if (match.turn?.currentUid !== uid) throw new HttpsError("failed-precondition", "Not your turn");
 
     const myState = match.stateByUid?.[uid];
     if (!myState) throw new HttpsError("internal", "Player state missing");
 
-    // --- SYMBOL SELECTION (unchanged rule) ---
+    // already in middle of 2-question chain? don't allow spin
+    const qi = Number(match.turn?.questionIndex ?? 0);
+    if (qi !== 0) throw new HttpsError("failed-precondition", "Cannot spin while a category chain is active");
+
+    // symbol pool: remove owned categories
     const owned: SymbolKey[] = (myState.symbols ?? []) as SymbolKey[];
     const available = ALL_SYMBOLS.filter((s) => !owned.includes(s));
 
@@ -102,29 +98,30 @@ export const matchSpin = onCall(async (req) => {
         status: "FINISHED",
         winnerUid: uid,
         endedReason: "ALL_SYMBOLS_OWNED",
+        "turn.phase": "END",
       });
       return { matchId, symbol: ALL_SYMBOLS[0], questionId: "" };
     }
 
     const symbol = pickRandom(available);
 
-    // --- QUESTION SELECTION ---
     const usedArr: string[] = match.turn?.usedQuestionIds ?? [];
     const usedSet = new Set<string>(usedArr);
 
+    // Pick first question for this symbol/category
     const questionId = await pickRandomQuestionIdTx({
       tx,
-      category: symbol ?? DEFAULT_CATEGORY,
+      category: symbol,
       used: usedSet,
-      maxAttempts: 10,
+      maxAttempts: 12,
     });
 
     tx.update(matchRef, {
       "turn.phase": "QUESTION",
       "turn.challengeSymbol": symbol,
-      "turn.streak": 0,
       "turn.activeQuestionId": questionId,
       "turn.usedQuestionIds": [...usedArr, questionId],
+      "turn.questionIndex": 1, // ✅ first question
     });
 
     return { matchId, symbol, questionId };

@@ -34,6 +34,8 @@ export const matchCreateInvite = onCall(async (req) => {
       activeQuestionId: null,
       usedQuestionIds: [],
       streakSymbol: null,
+      questionIndex: 0,
+
 
     },
 

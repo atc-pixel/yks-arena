@@ -12,17 +12,14 @@ function pickRandom(arr) {
     return arr[Math.floor(Math.random() * arr.length)];
 }
 /**
- * Pick a random question ID using Random ID Inequality pattern.
- * - category == X
- * - randomId >= r (ASC, limit 1)
- * - fallback: randomId < r (DESC, limit 1)
- * - retry if used
+ * Random ID Inequality pattern inside a transaction.
+ * Avoids usedQuestionIds with retries.
  */
 async function pickRandomQuestionIdTx(params) {
-    const { tx, category, used, maxAttempts = 10 } = params;
+    const { tx, category, used, maxAttempts = 12 } = params;
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
         const r = randInt(RANDOM_ID_MAX);
-        // Primary query (>= r)
+        // >= r (ASC)
         let q = firestore_1.db
             .collection("questions")
             .where("isActive", "==", true)
@@ -31,7 +28,7 @@ async function pickRandomQuestionIdTx(params) {
             .orderBy("randomId", "asc")
             .limit(1);
         let snap = await tx.get(q);
-        // Wrap-around (< r)
+        // wrap-around: < r (DESC)
         if (snap.empty) {
             q = firestore_1.db
                 .collection("questions")
@@ -72,7 +69,11 @@ exports.matchSpin = (0, https_1.onCall)(async (req) => {
         const myState = match.stateByUid?.[uid];
         if (!myState)
             throw new https_1.HttpsError("internal", "Player state missing");
-        // --- SYMBOL SELECTION (unchanged rule) ---
+        // already in middle of 2-question chain? don't allow spin
+        const qi = Number(match.turn?.questionIndex ?? 0);
+        if (qi !== 0)
+            throw new https_1.HttpsError("failed-precondition", "Cannot spin while a category chain is active");
+        // symbol pool: remove owned categories
         const owned = (myState.symbols ?? []);
         const available = constants_1.ALL_SYMBOLS.filter((s) => !owned.includes(s));
         if (available.length === 0) {
@@ -80,25 +81,26 @@ exports.matchSpin = (0, https_1.onCall)(async (req) => {
                 status: "FINISHED",
                 winnerUid: uid,
                 endedReason: "ALL_SYMBOLS_OWNED",
+                "turn.phase": "END",
             });
             return { matchId, symbol: constants_1.ALL_SYMBOLS[0], questionId: "" };
         }
         const symbol = pickRandom(available);
-        // --- QUESTION SELECTION ---
         const usedArr = match.turn?.usedQuestionIds ?? [];
         const usedSet = new Set(usedArr);
+        // Pick first question for this symbol/category
         const questionId = await pickRandomQuestionIdTx({
             tx,
-            category: symbol ?? constants_1.DEFAULT_CATEGORY,
+            category: symbol,
             used: usedSet,
-            maxAttempts: 10,
+            maxAttempts: 12,
         });
         tx.update(matchRef, {
             "turn.phase": "QUESTION",
             "turn.challengeSymbol": symbol,
-            "turn.streak": 0,
             "turn.activeQuestionId": questionId,
             "turn.usedQuestionIds": [...usedArr, questionId],
+            "turn.questionIndex": 1, // ✅ first question
         });
         return { matchId, symbol, questionId };
     });

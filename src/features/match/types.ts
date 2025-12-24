@@ -30,7 +30,6 @@ export type PlayerState = {
 
 export type TurnPhase = "SPIN" | "QUESTION" | "END";
 
-
 export type MatchDoc = {
   createdAt: any;
   status: MatchStatus;
@@ -46,12 +45,10 @@ export type MatchDoc = {
   usedQuestionIds: string[];
   lastResult?: TurnLastResult | null;
   streakSymbol?: SymbolKey | null;
-
+  questionIndex?: 0 | 1 | 2;
 };
 
-
   stateByUid: Record<string, PlayerState>;
-
   winnerUid?: string;
   endedReason?: string;
 };
@@ -65,5 +62,6 @@ export type TurnLastResult = {
   isCorrect: boolean;
   earnedSymbol: SymbolKey | null;
   at: number;
+  
 };
 
