@@ -41,8 +41,9 @@ exports.matchJoinInvite = (0, https_1.onCall)(async (req) => {
             "turn.activeQuestionId": null,
             "turn.usedQuestionIds": [],
             stateByUid: {
-                [hostUid]: match.stateByUid?.[hostUid] ?? { lives: 5, points: 0, symbols: [], wrongCount: 0, answeredCount: 0 },
-                [uid]: { lives: 5, points: 0, symbols: [], wrongCount: 0, answeredCount: 0 },
+                [hostUid]: match.stateByUid?.[hostUid] ??
+                    { lives: 5, trophies: 0, symbols: [], wrongCount: 0, answeredCount: 0 },
+                [uid]: { lives: 5, trophies: 0, symbols: [], wrongCount: 0, answeredCount: 0 },
             },
         });
         tx.update(inviteRef, { status: "USED" });

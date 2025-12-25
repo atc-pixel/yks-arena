@@ -42,7 +42,7 @@ export const matchCreateInvite = onCall(async (req) => {
     stateByUid: {
       [uid]: {
         lives: 5,
-        points: 0,
+        trophies: 0,
         symbols: [],
         wrongCount: 0,
         answeredCount: 0,

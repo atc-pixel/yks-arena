@@ -34,11 +34,12 @@ exports.matchCreateInvite = (0, https_1.onCall)(async (req) => {
             activeQuestionId: null,
             usedQuestionIds: [],
             streakSymbol: null,
+            questionIndex: 0,
         },
         stateByUid: {
             [uid]: {
                 lives: 5,
-                points: 0,
+                trophies: 0,
                 symbols: [],
                 wrongCount: 0,
                 answeredCount: 0,

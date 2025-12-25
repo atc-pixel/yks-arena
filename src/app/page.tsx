@@ -3,8 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
-import { auth } from "@/lib/firebase/client";
-import { signInAnonymously, onAuthStateChanged } from "firebase/auth";
+import { useAnonAuth } from "@/features/auth/useAnonAuth";
+
 
 import { createInvite, joinInvite } from "@/features/match/services/match.api";
 
@@ -14,8 +14,6 @@ function cx(...xs: Array<string | false | null | undefined>) {
 
 export default function HomePage() {
   const router = useRouter();
-
-  const [userUid, setUserUid] = useState<string | null>(null);
 
   const [joinCode, setJoinCode] = useState("");
   const [busy, setBusy] = useState<"create" | "join" | null>(null);
@@ -28,21 +26,13 @@ export default function HomePage() {
 
   const canJoin = useMemo(() => joinCode.trim().length >= 4, [joinCode]);
 
+  const { user, ready, error: authError } = useAnonAuth();
+  const userUid = user?.uid ?? null;
+
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, async (u) => {
-      if (u) {
-        setUserUid(u.uid);
-        return;
-      }
-      try {
-        await signInAnonymously(auth);
-      } catch (e) {
-        console.error(e);
-        setError("Anon giriş yapılamadı. Emulator/auth ayarlarını kontrol et.");
-      }
-    });
-    return () => unsub();
-  }, []);
+    if (authError) setError(authError);
+  }, [authError]);
+
 
   const onCreateInvite = async () => {
     setError(null);

@@ -10,6 +10,29 @@ function randInt(maxExclusive: number) {
   return Math.floor(Math.random() * maxExclusive);
 }
 
+function hashStringToInt(input: string): number {
+  let h = 0;
+  for (let i = 0; i < input.length; i++) {
+    h = (h * 31 + input.charCodeAt(i)) | 0;
+  }
+  return Math.abs(h);
+}
+
+/**
+ * Elo yokken: deterministic 0..5 kupa
+ * (retry olursa puan değişmesin diye Math.random kullanmıyoruz)
+ */
+function calcKupaForCorrectAnswer(params: {
+  matchId: string;
+  questionId: string;
+  uid: string;
+}): number {
+  const { matchId, questionId, uid } = params;
+  const seed = hashStringToInt(`${matchId}:${questionId}:${uid}`);
+  return seed % 6; // 0..5
+}
+
+
 /**
  * RandomId inequality pick inside TX, avoiding used IDs.
  */
@@ -111,6 +134,11 @@ export const matchSubmitAnswer = onCall(async (req) => {
     const correctAnswer: ChoiceKey = q.answer;
     const isCorrect = answer === correctAnswer;
 
+    const kupaAwarded = isCorrect
+      ? calcKupaForCorrectAnswer({ matchId, questionId, uid })
+      : 0;
+
+
     const nextMyState = { ...myState };
     nextMyState.answeredCount = (nextMyState.answeredCount ?? 0) + 1;
 
@@ -128,6 +156,7 @@ export const matchSubmitAnswer = onCall(async (req) => {
       answer,
       correctAnswer,
       isCorrect,
+      kupaAwarded,
       earnedSymbol: null as SymbolKey | null,
       at: Date.now(),
       questionIndex,
@@ -162,7 +191,8 @@ export const matchSubmitAnswer = onCall(async (req) => {
     }
 
     // CORRECT => keep turn
-    nextMyState.points = (nextMyState.points ?? 0) + 1;
+    nextMyState.trophies = (nextMyState.trophies ?? 0) + kupaAwarded;
+
 
     // If Q1 correct => immediately ask Q2 (same category, no spin)
     if (questionIndex === 1) {
