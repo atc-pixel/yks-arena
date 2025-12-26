@@ -1,5 +1,3 @@
-// functions/src/users/onMatchFinished.ts
-
 import { onDocumentUpdated } from "firebase-functions/v2/firestore";
 import { db, FieldValue } from "../utils/firestore";
 import { USER_COLLECTION } from "./types";
@@ -12,19 +10,16 @@ type MatchDoc = {
   players?: string[];
   winnerUid?: string;
 
-  // We now treat this as "match kupa earned from correct answers"
   stateByUid?: Record<
     string,
     {
-      lives?: number;
-      trophies?: number; // <-- IMPORTANT: renamed from points to trophies in match engine
+      trophies?: number; // match içi kazanılan kupa (soru bazlı)
       wrongCount?: number;
       answeredCount?: number;
       symbols?: string[];
     }
   >;
 
-  // Idempotency marker for Phase 1
   progression?: {
     phase1ProcessedAt?: FirebaseFirestore.Timestamp;
   };
@@ -32,20 +27,21 @@ type MatchDoc = {
 
 function computeTrophyDeltaFromMatchKupa(params: {
   isWinner: boolean;
-  myMatchKupa: number; // stateByUid.{uid}.trophies
+  myMatchKupa: number;
 }): number {
-  const { isWinner, myMatchKupa } = params;
-  const kupa = Math.max(0, Math.floor(myMatchKupa || 0));
+  const kupa = Math.max(0, Math.floor(params.myMatchKupa || 0));
 
-  if (isWinner) {
-    // Winner: 25..32 (kupa 0..21 -> bonus 0..7)
-    const bonus = Math.min(7, Math.floor(kupa / 3));
+  if (params.isWinner) {
+    const bonus = Math.min(7, Math.floor(kupa / 3)); // 0..7
     return 25 + bonus; // 25..32
   }
 
-  // Loser: -2..+5 (kupa 0..21 -> -2..+5)
-  const value = -2 + Math.min(7, Math.floor(kupa / 3)); // -2..+5 (cap)
+  const value = -2 + Math.min(7, Math.floor(kupa / 3)); // -2..+5
   return Math.min(5, value);
+}
+
+function decClamp(n: number) {
+  return Math.max(0, Math.floor(n) - 1);
 }
 
 export const matchOnFinished = onDocumentUpdated(
@@ -53,34 +49,31 @@ export const matchOnFinished = onDocumentUpdated(
   async (event) => {
     const before = event.data?.before.data() as MatchDoc | undefined;
     const after = event.data?.after.data() as MatchDoc | undefined;
-
     if (!before || !after) return;
 
-    // ONLY on ACTIVE -> FINISHED
+    // ONLY ACTIVE -> FINISHED
     if (!(before.status === "ACTIVE" && after.status === "FINISHED")) return;
 
-    const matchId = event.params.matchId as string;
-    const winnerUid = after.winnerUid;
+    const matchRef = event.data!.after.ref;
+
     const players = after.players ?? [];
+    if (players.length !== 2) return;
 
+    const winnerUid = after.winnerUid ?? null;
     if (!winnerUid) return;
-    if (!players.length) return;
 
-    // 1v1 assumption (current engine)
-    const loserUid = players.find((p) => p !== winnerUid);
+    const loserUid = players.find((p) => p !== winnerUid) ?? null;
     if (!loserUid) return;
 
-    const matchRef = event.data!.after.ref;
     const winnerRef = db.collection(USER_COLLECTION).doc(winnerUid);
     const loserRef = db.collection(USER_COLLECTION).doc(loserUid);
 
     await db.runTransaction(async (tx) => {
-      // Re-read match inside txn for idempotency
-      const matchSnap = await tx.get(matchRef);
-      const match = matchSnap.data() as MatchDoc | undefined;
+      const snap = await tx.get(matchRef);
+      const match = snap.data() as MatchDoc | undefined;
       if (!match) return;
 
-      // If already processed, bail out (retry safe)
+      // idempotency
       if (match.progression?.phase1ProcessedAt) return;
 
       const stateByUid = match.stateByUid ?? {};
@@ -100,14 +93,12 @@ export const matchOnFinished = onDocumentUpdated(
         myMatchKupa: loserMatchKupa,
       });
 
-      // Fetch user docs to compute new totals + level
       const [winnerSnap, loserSnap] = await Promise.all([
         tx.get(winnerRef),
         tx.get(loserRef),
       ]);
 
       if (!winnerSnap.exists || !loserSnap.exists) {
-        // If user doc missing, mark match processed to avoid infinite retries
         tx.update(matchRef, {
           progression: { phase1ProcessedAt: FieldValue.serverTimestamp() },
         });
@@ -117,6 +108,7 @@ export const matchOnFinished = onDocumentUpdated(
       const winnerData = winnerSnap.data() as any;
       const loserData = loserSnap.data() as any;
 
+      // trophies -> level
       const winnerOldTrophies = Number(winnerData.trophies ?? 0);
       const loserOldTrophies = Number(loserData.trophies ?? 0);
 
@@ -126,24 +118,30 @@ export const matchOnFinished = onDocumentUpdated(
       const winnerNewLevel = calcLevelFromTrophies(winnerNewTrophies);
       const loserNewLevel = calcLevelFromTrophies(loserNewTrophies);
 
-      // Winner updates
+      // activeMatchCount clamp (never negative)
+      const winnerOldActive = Number(winnerData?.presence?.activeMatchCount ?? 0);
+      const loserOldActive = Number(loserData?.presence?.activeMatchCount ?? 0);
+
+      const winnerNewActive = decClamp(winnerOldActive);
+      const loserNewActive = decClamp(loserOldActive);
+
       tx.update(winnerRef, {
         trophies: winnerNewTrophies,
         level: winnerNewLevel,
         "stats.totalMatches": FieldValue.increment(1),
         "stats.totalWins": FieldValue.increment(1),
-        "league.weeklyScore": FieldValue.increment(winnerDelta), // weekly competition for Phase 3
+        "league.weeklyScore": FieldValue.increment(winnerDelta),
+        "presence.activeMatchCount": winnerNewActive,
       });
 
-      // Loser updates
       tx.update(loserRef, {
         trophies: loserNewTrophies,
         level: loserNewLevel,
         "stats.totalMatches": FieldValue.increment(1),
         "league.weeklyScore": FieldValue.increment(loserDelta),
+        "presence.activeMatchCount": loserNewActive,
       });
 
-      // Mark match processed (idempotency)
       tx.update(matchRef, {
         progression: { phase1ProcessedAt: FieldValue.serverTimestamp() },
       });

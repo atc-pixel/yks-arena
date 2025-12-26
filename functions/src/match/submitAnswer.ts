@@ -1,6 +1,7 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
-import { db } from "../utils/firestore";
+import { db, FieldValue } from "../utils/firestore";
 import type { SymbolKey } from "../shared/constants";
+import { ensureUserDoc } from "../users/ensure";
 
 type ChoiceKey = "A" | "B" | "C" | "D" | "E";
 
@@ -10,6 +11,7 @@ function randInt(maxExclusive: number) {
   return Math.floor(Math.random() * maxExclusive);
 }
 
+// deterministic hash (retry-safe)
 function hashStringToInt(input: string): number {
   let h = 0;
   for (let i = 0; i < input.length; i++) {
@@ -19,19 +21,13 @@ function hashStringToInt(input: string): number {
 }
 
 /**
- * Elo yokken: deterministic 0..5 kupa
- * (retry olursa puan değişmesin diye Math.random kullanmıyoruz)
+ * Elo yokken deterministic 0..5 kupa.
+ * Retry olursa değişmesin diye Math.random yok.
  */
-function calcKupaForCorrectAnswer(params: {
-  matchId: string;
-  questionId: string;
-  uid: string;
-}): number {
-  const { matchId, questionId, uid } = params;
-  const seed = hashStringToInt(`${matchId}:${questionId}:${uid}`);
+function calcKupaForCorrectAnswer(params: { matchId: string; questionId: string; uid: string }) {
+  const seed = hashStringToInt(`${params.matchId}:${params.questionId}:${params.uid}`);
   return seed % 6; // 0..5
 }
-
 
 /**
  * RandomId inequality pick inside TX, avoiding used IDs.
@@ -85,6 +81,9 @@ export const matchSubmitAnswer = onCall(async (req) => {
   const uid = req.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Auth required.");
 
+  // Safety net (ragequit / ensureUserProfile missed)
+  await ensureUserDoc(uid);
+
   const matchId = String(req.data?.matchId ?? "").trim();
   const answer = String(req.data?.answer ?? "").trim() as ChoiceKey;
 
@@ -98,6 +97,19 @@ export const matchSubmitAnswer = onCall(async (req) => {
   const result = await db.runTransaction(async (tx) => {
     const matchSnap = await tx.get(matchRef);
     if (!matchSnap.exists) throw new HttpsError("not-found", "Match not found");
+
+    // Read user energy (GLOBAL wrong allowance)
+    const userRef = db.collection("users").doc(uid);
+    const userSnap = await tx.get(userRef);
+    if (!userSnap.exists) throw new HttpsError("internal", "User doc missing");
+
+    const userData = userSnap.data() as any;
+    const currentEnergy = Number(userData?.economy?.energy ?? 0);
+
+    // Rule: energy 0 => cannot answer any question
+    if (currentEnergy <= 0) {
+      throw new HttpsError("failed-precondition", "ENERGY_ZERO");
+    }
 
     const match = matchSnap.data() as any;
 
@@ -134,10 +146,7 @@ export const matchSubmitAnswer = onCall(async (req) => {
     const correctAnswer: ChoiceKey = q.answer;
     const isCorrect = answer === correctAnswer;
 
-    const kupaAwarded = isCorrect
-      ? calcKupaForCorrectAnswer({ matchId, questionId, uid })
-      : 0;
-
+    const kupaAwarded = isCorrect ? calcKupaForCorrectAnswer({ matchId, questionId, uid }) : 0;
 
     const nextMyState = { ...myState };
     nextMyState.answeredCount = (nextMyState.answeredCount ?? 0) + 1;
@@ -162,11 +171,20 @@ export const matchSubmitAnswer = onCall(async (req) => {
       questionIndex,
     };
 
-    // WRONG => pass turn
+    // WRONG => consume 1 energy; if reaches 0 => match ends (opponent wins)
     if (!isCorrect) {
       nextMyState.wrongCount = (nextMyState.wrongCount ?? 0) + 1;
-      nextMyState.lives = Math.max(0, (nextMyState.lives ?? 0) - 1);
 
+      const energyAfter = Math.max(0, currentEnergy - 1);
+
+      // consume energy (global)
+      tx.update(userRef, {
+        "economy.energy": FieldValue.increment(-1),
+      });
+
+      
+
+      // energy remains >0 => pass turn
       tx.update(matchRef, {
         [`stateByUid.${uid}`]: nextMyState,
 
@@ -187,12 +205,13 @@ export const matchSubmitAnswer = onCall(async (req) => {
         isCorrect: false,
         nextCurrentUid: oppUid,
         questionIndex: 0,
+        kupaAwarded: 0,
+        energyAfter,
       };
     }
 
-    // CORRECT => keep turn
+    // CORRECT => add match kupa (question-based)
     nextMyState.trophies = (nextMyState.trophies ?? 0) + kupaAwarded;
-
 
     // If Q1 correct => immediately ask Q2 (same category, no spin)
     if (questionIndex === 1) {
@@ -224,6 +243,8 @@ export const matchSubmitAnswer = onCall(async (req) => {
         questionIndex: 2,
         symbol,
         questionId: nextQuestionId,
+        kupaAwarded,
+        energyAfter: currentEnergy,
       };
     }
 
@@ -264,6 +285,8 @@ export const matchSubmitAnswer = onCall(async (req) => {
       earnedSymbol,
       nextCurrentUid: uid,
       questionIndex: 0,
+      kupaAwarded,
+      energyAfter: currentEnergy,
     };
   });
 

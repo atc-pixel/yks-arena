@@ -3,10 +3,12 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.matchSubmitAnswer = void 0;
 const https_1 = require("firebase-functions/v2/https");
 const firestore_1 = require("../utils/firestore");
+const ensure_1 = require("../users/ensure");
 const RANDOM_ID_MAX = 10_000_000;
 function randInt(maxExclusive) {
     return Math.floor(Math.random() * maxExclusive);
 }
+// deterministic hash (retry-safe)
 function hashStringToInt(input) {
     let h = 0;
     for (let i = 0; i < input.length; i++) {
@@ -15,12 +17,11 @@ function hashStringToInt(input) {
     return Math.abs(h);
 }
 /**
- * Elo yokken: deterministic 0..5 kupa
- * (retry olursa puan değişmesin diye Math.random kullanmıyoruz)
+ * Elo yokken deterministic 0..5 kupa.
+ * Retry olursa değişmesin diye Math.random yok.
  */
 function calcKupaForCorrectAnswer(params) {
-    const { matchId, questionId, uid } = params;
-    const seed = hashStringToInt(`${matchId}:${questionId}:${uid}`);
+    const seed = hashStringToInt(`${params.matchId}:${params.questionId}:${params.uid}`);
     return seed % 6; // 0..5
 }
 /**
@@ -60,6 +61,8 @@ exports.matchSubmitAnswer = (0, https_1.onCall)(async (req) => {
     const uid = req.auth?.uid;
     if (!uid)
         throw new https_1.HttpsError("unauthenticated", "Auth required.");
+    // Safety net (ragequit / ensureUserProfile missed)
+    await (0, ensure_1.ensureUserDoc)(uid);
     const matchId = String(req.data?.matchId ?? "").trim();
     const answer = String(req.data?.answer ?? "").trim();
     if (!matchId)
@@ -72,6 +75,17 @@ exports.matchSubmitAnswer = (0, https_1.onCall)(async (req) => {
         const matchSnap = await tx.get(matchRef);
         if (!matchSnap.exists)
             throw new https_1.HttpsError("not-found", "Match not found");
+        // Read user energy (GLOBAL wrong allowance)
+        const userRef = firestore_1.db.collection("users").doc(uid);
+        const userSnap = await tx.get(userRef);
+        if (!userSnap.exists)
+            throw new https_1.HttpsError("internal", "User doc missing");
+        const userData = userSnap.data();
+        const currentEnergy = Number(userData?.economy?.energy ?? 0);
+        // Rule: energy 0 => cannot answer any question
+        if (currentEnergy <= 0) {
+            throw new https_1.HttpsError("failed-precondition", "ENERGY_ZERO");
+        }
         const match = matchSnap.data();
         if (match.status !== "ACTIVE")
             throw new https_1.HttpsError("failed-precondition", "Match not active");
@@ -107,9 +121,7 @@ exports.matchSubmitAnswer = (0, https_1.onCall)(async (req) => {
         const q = qSnap.data();
         const correctAnswer = q.answer;
         const isCorrect = answer === correctAnswer;
-        const kupaAwarded = isCorrect
-            ? calcKupaForCorrectAnswer({ matchId, questionId, uid })
-            : 0;
+        const kupaAwarded = isCorrect ? calcKupaForCorrectAnswer({ matchId, questionId, uid }) : 0;
         const nextMyState = { ...myState };
         nextMyState.answeredCount = (nextMyState.answeredCount ?? 0) + 1;
         let earnedSymbol = null;
@@ -129,10 +141,15 @@ exports.matchSubmitAnswer = (0, https_1.onCall)(async (req) => {
             at: Date.now(),
             questionIndex,
         };
-        // WRONG => pass turn
+        // WRONG => consume 1 energy; if reaches 0 => match ends (opponent wins)
         if (!isCorrect) {
             nextMyState.wrongCount = (nextMyState.wrongCount ?? 0) + 1;
-            nextMyState.lives = Math.max(0, (nextMyState.lives ?? 0) - 1);
+            const energyAfter = Math.max(0, currentEnergy - 1);
+            // consume energy (global)
+            tx.update(userRef, {
+                "economy.energy": firestore_1.FieldValue.increment(-1),
+            });
+            // energy remains >0 => pass turn
             tx.update(matchRef, {
                 [`stateByUid.${uid}`]: nextMyState,
                 "turn.lastResult": baseResult,
@@ -150,9 +167,11 @@ exports.matchSubmitAnswer = (0, https_1.onCall)(async (req) => {
                 isCorrect: false,
                 nextCurrentUid: oppUid,
                 questionIndex: 0,
+                kupaAwarded: 0,
+                energyAfter,
             };
         }
-        // CORRECT => keep turn
+        // CORRECT => add match kupa (question-based)
         nextMyState.trophies = (nextMyState.trophies ?? 0) + kupaAwarded;
         // If Q1 correct => immediately ask Q2 (same category, no spin)
         if (questionIndex === 1) {
@@ -181,6 +200,8 @@ exports.matchSubmitAnswer = (0, https_1.onCall)(async (req) => {
                 questionIndex: 2,
                 symbol,
                 questionId: nextQuestionId,
+                kupaAwarded,
+                energyAfter: currentEnergy,
             };
         }
         // If Q2 correct => earn symbol, back to SPIN (still your turn)
@@ -212,6 +233,8 @@ exports.matchSubmitAnswer = (0, https_1.onCall)(async (req) => {
             earnedSymbol,
             nextCurrentUid: uid,
             questionIndex: 0,
+            kupaAwarded,
+            energyAfter: currentEnergy,
         };
     });
     return result;
