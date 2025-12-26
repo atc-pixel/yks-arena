@@ -6,7 +6,8 @@ import { useRouter } from "next/navigation";
 import { useAnonAuth } from "@/features/auth/useAnonAuth";
 
 
-import { createInvite, joinInvite } from "@/features/match/services/match.api";
+import { createInvite, joinInvite, cancelInvite } from "@/features/match/services/match.api";
+
 
 function cx(...xs: Array<string | false | null | undefined>) {
   return xs.filter(Boolean).join(" ");
@@ -67,6 +68,24 @@ export default function HomePage() {
     router.push(`/match/${createdMatchId}`);
   };
 
+
+  const onCancelInvite = async () => {
+    if (!createdInviteCode) return;
+
+    setError(null);
+    setBusy("create"); // basit: modal içi butonları disable etmek için reuse
+    try {
+      await cancelInvite(createdInviteCode); // inviteId = kod (doc id)
+      closeCreated();
+    } catch (e: any) {
+      console.error(e);
+      setError(e?.message || "Davet iptal edilemedi.");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+
   const onJoin = async () => {
     setError(null);
     setBusy("join");
@@ -87,6 +106,7 @@ export default function HomePage() {
     setCreatedMatchId(null);
     setCopied(false);
   };
+  
 
   return (
     <main className="min-h-dvh bg-linear-to-b from-neutral-950 via-neutral-950 to-neutral-900 text-neutral-100">
@@ -204,12 +224,32 @@ export default function HomePage() {
                 </div>
               </div>
 
-              <button
-                onClick={onGoToMatch}
-                className="mt-4 w-full rounded-xl bg-emerald-500 px-4 py-3 text-sm font-semibold text-neutral-950 hover:bg-emerald-400"
-              >
-                Maça Geç
-              </button>
+                            <div className="mt-4 grid grid-cols-2 gap-3">
+                <button
+                  onClick={onCancelInvite}
+                  disabled={busy !== null}
+                  className={cx(
+                    "w-full rounded-xl px-4 py-3 text-sm font-semibold",
+                    "bg-neutral-900 text-neutral-100 ring-1 ring-neutral-800 hover:bg-neutral-800",
+                    "disabled:opacity-60 disabled:cursor-not-allowed"
+                  )}
+                >
+                  {busy ? "İşleniyor..." : "Davet İptal"}
+                </button>
+
+                <button
+                  onClick={onGoToMatch}
+                  disabled={busy !== null}
+                  className={cx(
+                    "w-full rounded-xl px-4 py-3 text-sm font-semibold",
+                    "bg-emerald-500 text-neutral-950 hover:bg-emerald-400",
+                    "disabled:opacity-60 disabled:cursor-not-allowed"
+                  )}
+                >
+                  Maça Geç
+                </button>
+              </div>
+
 
               <div className="mt-3 text-xs text-neutral-500">
                 Match: <span className="font-mono">{createdMatchId}</span>

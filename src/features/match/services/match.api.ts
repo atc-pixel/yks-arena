@@ -5,6 +5,8 @@ import type { ChoiceKey, MatchDoc, SymbolKey } from "../types";
 
 export type CreateInviteResponse = { code: string; matchId: string };
 export type JoinInviteResponse = { matchId: string };
+export type CancelInviteResponse = { ok: boolean };
+
 
 export type SpinResponse = {
   matchId: string;
@@ -24,6 +26,7 @@ const FN = {
   joinInvite: "matchJoinInvite",
   spin: "matchSpin",
   submitAnswer: "matchSubmitAnswer",
+  cancelInvite: "cancelInvite", // <-- backend export ismine göre ayarla
 } as const;
 
 export async function createInvite() {
@@ -54,5 +57,11 @@ export async function submitAnswer(matchId: string, answer: ChoiceKey) {
     FN.submitAnswer
   );
   const res = await fn({ matchId, answer });
+  return res.data;
+}
+
+export async function cancelInvite(inviteId: string) {
+  const fn = httpsCallable<{ inviteId: string }, CancelInviteResponse>(functions, FN.cancelInvite);
+  const res = await fn({ inviteId });
   return res.data;
 }

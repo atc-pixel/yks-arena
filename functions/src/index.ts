@@ -6,5 +6,7 @@ export { matchSubmitAnswer } from "./match/submitAnswer";
 export { ensureUserProfile } from "./users/ensureUserProfile";
 export { matchOnFinished } from "./users/onMatchFinished";
 
+export { cancelInvite } from "./match/cancelInvite";
+
 
 
