@@ -2,6 +2,7 @@ import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { db, FieldValue } from "../utils/firestore";
 import type { SymbolKey } from "../shared/constants";
 import { ensureUserDoc } from "../users/ensure";
+import { applyHourlyRefillTx } from "../users/energy";
 
 type ChoiceKey = "A" | "B" | "C" | "D" | "E";
 
@@ -104,7 +105,13 @@ export const matchSubmitAnswer = onCall(async (req) => {
     if (!userSnap.exists) throw new HttpsError("internal", "User doc missing");
 
     const userData = userSnap.data() as any;
-    const currentEnergy = Number(userData?.economy?.energy ?? 0);
+    const nowMs = Date.now();
+    const { energyAfter: currentEnergy } = applyHourlyRefillTx({
+      tx,
+      userRef,
+      userData,
+      nowMs,
+    });
 
     // Rule: energy 0 => cannot answer any question
     if (currentEnergy <= 0) {
@@ -178,9 +185,8 @@ export const matchSubmitAnswer = onCall(async (req) => {
       const energyAfter = Math.max(0, currentEnergy - 1);
 
       // consume energy (global)
-      tx.update(userRef, {
-        "economy.energy": FieldValue.increment(-1),
-      });
+      // consume energy (global) - MUST be inside TX
+      tx.update(userRef, { "economy.energy": FieldValue.increment(-1) });
 
       
 

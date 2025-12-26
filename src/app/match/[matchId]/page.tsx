@@ -216,14 +216,10 @@ export default function MatchPage() {
             <div className="text-xs text-neutral-400">Sen</div>
             <div className="mt-1 font-mono text-xs">{myUid ?? "—"}</div>
 
-            <div className="mt-4 grid grid-cols-2 gap-3">
+            <div className="mt-4 grid grid-cols-1 gap-3">
               <div className="rounded-2xl bg-neutral-950/60 p-4 ring-1 ring-neutral-800">
-                <div className="text-xs text-neutral-400">❤️ Lives</div>
-                <div className="mt-1 text-2xl font-semibold">{myState?.lives ?? "—"}</div>
-              </div>
-              <div className="rounded-2xl bg-neutral-950/60 p-4 ring-1 ring-neutral-800">
-                <div className="text-xs text-neutral-400">⭐ Points</div>
-                <div className="mt-1 text-2xl font-semibold">{myState?.points ?? "—"}</div>
+                <div className="text-xs text-neutral-400">🏆 Match Trophies</div>
+                <div className="mt-1 text-2xl font-semibold">{myState?.trophies ?? 0}</div>
               </div>
             </div>
 
@@ -254,14 +250,10 @@ export default function MatchPage() {
             <div className="text-xs text-neutral-400">Rakip</div>
             <div className="mt-1 font-mono text-xs">{oppUid ?? "—"}</div>
 
-            <div className="mt-4 grid grid-cols-2 gap-3">
+            <div className="mt-4 grid grid-cols-1 gap-3">
               <div className="rounded-2xl bg-neutral-950/60 p-4 ring-1 ring-neutral-800">
-                <div className="text-xs text-neutral-400">❤️ Lives</div>
-                <div className="mt-1 text-2xl font-semibold">{oppState?.lives ?? "—"}</div>
-              </div>
-              <div className="rounded-2xl bg-neutral-950/60 p-4 ring-1 ring-neutral-800">
-                <div className="text-xs text-neutral-400">⭐ Points</div>
-                <div className="mt-1 text-2xl font-semibold">{oppState?.points ?? "—"}</div>
+                <div className="text-xs text-neutral-400">🏆 Match Trophies</div>
+                <div className="mt-1 text-2xl font-semibold">{oppState?.trophies ?? 0}</div>
               </div>
             </div>
 

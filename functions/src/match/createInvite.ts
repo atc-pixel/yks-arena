@@ -1,8 +1,9 @@
 // functions/src/match/createInvite.ts
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { nanoid } from "nanoid";
-import { db, Timestamp } from "../utils/firestore";
+import { db, FieldValue, Timestamp } from "../utils/firestore";
 import { ensureUserDoc } from "../users/ensure";
+import { applyHourlyRefillTx } from "../users/energy";
 
 async function allocateInviteCode(len = 6, tries = 5) {
   for (let i = 0; i < tries; i++) {
@@ -19,53 +20,71 @@ export const matchCreateInvite = onCall(async (req) => {
 
   await ensureUserDoc(uid);
 
-  // Gate: energy > 0 AND activeMatchCount < energy
-  const userSnap = await db.collection("users").doc(uid).get();
-  if (!userSnap.exists) throw new HttpsError("internal", "User doc missing");
-
-  const user = userSnap.data() as any;
-  const energy = Number(user?.economy?.energy ?? 0);
-  const activeMatchCount = Number(user?.presence?.activeMatchCount ?? 0);
-
-  if (energy <= 0) throw new HttpsError("failed-precondition", "ENERGY_ZERO");
-  if (activeMatchCount >= energy) throw new HttpsError("failed-precondition", "MATCH_LIMIT_REACHED");
-
-  const matchRef = db.collection("matches").doc();
+  // Allocate code outside TX (fast). Uniqueness is still enforced by invite doc existence.
   const code = await allocateInviteCode(6);
-  const now = Timestamp.now();
+  const matchRef = db.collection("matches").doc();
+  const inviteRef = db.collection("invites").doc(code);
 
-  await matchRef.set({
-    createdAt: now,
-    status: "WAITING",
-    mode: "INVITE",
-    players: [uid],
+  await db.runTransaction(async (tx) => {
+    const userRef = db.collection("users").doc(uid);
+    const userSnap = await tx.get(userRef);
+    if (!userSnap.exists) throw new HttpsError("internal", "User doc missing");
 
-    turn: {
-      currentUid: uid,
-      phase: "SPIN",
-      challengeSymbol: null,
-      streak: 0,
-      activeQuestionId: null,
-      usedQuestionIds: [],
-      streakSymbol: null,
-      questionIndex: 0,
-    },
+    // Hourly refill must be checked inside the TX.
+    const user = userSnap.data() as any;
+    const nowMs = Date.now();
+    const { energyAfter: energy } = applyHourlyRefillTx({ tx, userRef, userData: user, nowMs });
 
-    stateByUid: {
-      [uid]: {
-        trophies: 0,
-        symbols: [],
-        wrongCount: 0,
-        answeredCount: 0,
+    const activeMatchCount = Number(user?.presence?.activeMatchCount ?? 0);
+
+    // Gate: Energy > 0 AND Energy > activeMatchCount
+    if (energy <= 0) throw new HttpsError("failed-precondition", "ENERGY_ZERO");
+    if (activeMatchCount >= energy) throw new HttpsError("failed-precondition", "MATCH_LIMIT_REACHED");
+
+    // Make sure invite code wasn't taken between allocateInviteCode and now.
+    const inviteSnap = await tx.get(inviteRef);
+    if (inviteSnap.exists) throw new HttpsError("aborted", "Invite code already exists, retry.");
+
+    const now = Timestamp.now();
+
+    tx.set(matchRef, {
+      createdAt: now,
+      status: "WAITING",
+      mode: "INVITE",
+      players: [uid],
+
+      turn: {
+        currentUid: uid,
+        phase: "SPIN",
+        challengeSymbol: null,
+        streak: 0,
+        activeQuestionId: null,
+        usedQuestionIds: [],
+        streakSymbol: null,
+        questionIndex: 0,
       },
-    },
-  });
 
-  await db.collection("invites").doc(code).set({
-    createdAt: now,
-    createdBy: uid,
-    matchId: matchRef.id,
-    status: "OPEN",
+      stateByUid: {
+        [uid]: {
+          trophies: 0,
+          symbols: [],
+          wrongCount: 0,
+          answeredCount: 0,
+        },
+      },
+    });
+
+    tx.set(inviteRef, {
+      createdAt: now,
+      createdBy: uid,
+      matchId: matchRef.id,
+      status: "OPEN",
+    });
+
+    // Concurrency: opening an invite consumes an active match slot.
+    tx.update(userRef, {
+      "presence.activeMatchCount": FieldValue.increment(1),
+    });
   });
 
   return { code, matchId: matchRef.id };

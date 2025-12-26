@@ -1,6 +1,7 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { db, FieldValue } from "../utils/firestore";
 import { ensureUserDoc } from "../users/ensure";
+import { applyHourlyRefillTx } from "../users/energy";
 
 export const matchJoinInvite = onCall(async (req) => {
   const uid = req.auth?.uid;
@@ -49,10 +50,22 @@ export const matchJoinInvite = onCall(async (req) => {
     const hostUser = hostUserSnap.data() as any;
     const joinUser = joinUserSnap.data() as any;
 
-    const hostEnergy = Number(hostUser?.economy?.energy ?? 0);
-    const hostActive = Number(hostUser?.presence?.activeMatchCount ?? 0);
+    // Hourly energy refill for BOTH players must happen inside the same TX.
+    const nowMs = Date.now();
+    const { energyAfter: hostEnergy } = applyHourlyRefillTx({
+      tx,
+      userRef: hostUserRef,
+      userData: hostUser,
+      nowMs,
+    });
+    const { energyAfter: joinEnergy } = applyHourlyRefillTx({
+      tx,
+      userRef: joinUserRef,
+      userData: joinUser,
+      nowMs,
+    });
 
-    const joinEnergy = Number(joinUser?.economy?.energy ?? 0);
+    const hostActive = Number(hostUser?.presence?.activeMatchCount ?? 0);
     const joinActive = Number(joinUser?.presence?.activeMatchCount ?? 0);
 
     if (hostEnergy <= 0) throw new HttpsError("failed-precondition", "HOST_ENERGY_ZERO");
@@ -85,10 +98,9 @@ export const matchJoinInvite = onCall(async (req) => {
     // Mark invite used
     tx.update(inviteRef, { status: "USED" });
 
-    // Increment active match count for BOTH users (now match is ACTIVE)
-    tx.update(hostUserRef, {
-      "presence.activeMatchCount": FieldValue.increment(1),
-    });
+    // Concurrency:
+    // - Host already consumed a slot when creating the invite.
+    // - Joiner consumes a slot now.
     tx.update(joinUserRef, {
       "presence.activeMatchCount": FieldValue.increment(1),
     });

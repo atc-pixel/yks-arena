@@ -145,11 +145,8 @@ export default function ResultsPage() {
   const meSymbols: string[] = derived.meState?.symbols ?? [];
   const oppSymbols: string[] = derived.oppState?.symbols ?? [];
 
-  const meLives = derived.meState?.lives ?? "—";
-  const meScore = derived.meState?.score ?? "—";
-
-  const oppLives = derived.oppState?.lives ?? "—";
-  const oppScore = derived.oppState?.score ?? "—";
+  const meTrophies = derived.meState?.trophies ?? 0;
+  const oppTrophies = derived.oppState?.trophies ?? 0;
 
   return (
     <main className="min-h-dvh bg-linear-to-b from-neutral-950 via-neutral-950 to-neutral-900 text-neutral-100">
@@ -171,14 +168,10 @@ export default function ResultsPage() {
               <SymbolSlots owned={meSymbols} />
             </div>
 
-            <div className="mt-3 grid grid-cols-2 gap-3">
+            <div className="mt-3 grid grid-cols-1 gap-3">
               <div className="rounded-2xl bg-neutral-950/60 p-4 ring-1 ring-neutral-800">
-                <div className="text-xs text-neutral-400">❤️ Lives</div>
-                <div className="mt-1 text-2xl font-semibold">{meLives}</div>
-              </div>
-              <div className="rounded-2xl bg-neutral-950/60 p-4 ring-1 ring-neutral-800">
-                <div className="text-xs text-neutral-400">⭐ Points</div>
-                <div className="mt-1 text-2xl font-semibold">{meScore}</div>
+                <div className="text-xs text-neutral-400">🏆 Match Trophies</div>
+                <div className="mt-1 text-2xl font-semibold">{meTrophies}</div>
               </div>
             </div>
           </section>
@@ -194,14 +187,10 @@ export default function ResultsPage() {
               <SymbolSlots owned={oppSymbols} />
             </div>
 
-            <div className="mt-3 grid grid-cols-2 gap-3">
+            <div className="mt-3 grid grid-cols-1 gap-3">
               <div className="rounded-2xl bg-neutral-950/60 p-4 ring-1 ring-neutral-800">
-                <div className="text-xs text-neutral-400">❤️ Lives</div>
-                <div className="mt-1 text-2xl font-semibold">{oppLives}</div>
-              </div>
-              <div className="rounded-2xl bg-neutral-950/60 p-4 ring-1 ring-neutral-800">
-                <div className="text-xs text-neutral-400">⭐ Points</div>
-                <div className="mt-1 text-2xl font-semibold">{oppScore}</div>
+                <div className="text-xs text-neutral-400">🏆 Match Trophies</div>
+                <div className="mt-1 text-2xl font-semibold">{oppTrophies}</div>
               </div>
             </div>
           </section>

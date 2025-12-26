@@ -19,10 +19,8 @@ export type MatchStatus = "WAITING" | "ACTIVE" | "FINISHED" | "CANCELLED";
 export type SymbolKey = "BILIM" | "COGRAFYA" | "SPOR" | "MATEMATIK";
 export const ALL_SYMBOLS: SymbolKey[] = ["BILIM", "COGRAFYA", "SPOR", "MATEMATIK"];
 
-
 export type PlayerState = {
-  lives: number;          // 5
-  points: number;         // MVP: 0 başla
+  trophies: number;       // match içinde biriken kupa
   symbols: SymbolKey[];   // kazanılan semboller
   wrongCount: number;     // perfect run için
   answeredCount: number;  // perfect run için
@@ -60,8 +58,10 @@ export type TurnLastResult = {
   answer: ChoiceKey;
   correctAnswer: ChoiceKey;
   isCorrect: boolean;
+  kupaAwarded?: number;
   earnedSymbol: SymbolKey | null;
   at: number;
+  questionIndex?: 0 | 1 | 2;
   
 };
 
