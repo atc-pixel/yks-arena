@@ -5,15 +5,9 @@ const firestore_1 = require("firebase-functions/v2/firestore");
 const firestore_2 = require("../utils/firestore");
 const types_1 = require("./types");
 const utils_1 = require("./utils");
-function computeTrophyDeltaFromMatchKupa(params) {
-    const kupa = Math.max(0, Math.floor(params.myMatchKupa || 0));
-    if (params.isWinner) {
-        const bonus = Math.min(7, Math.floor(kupa / 3)); // 0..7
-        return 25 + bonus; // 25..32
-    }
-    const value = -2 + Math.min(7, Math.floor(kupa / 3)); // -2..+5
-    return Math.min(5, value);
-}
+// Progression settlement: transfer match-earned trophies to user profile.
+// Winner gets an additional fixed bonus.
+const WIN_BONUS = 25;
 function decClamp(n) {
     return Math.max(0, Math.floor(n) - 1);
 }
@@ -48,16 +42,13 @@ exports.matchOnFinished = (0, firestore_1.onDocumentUpdated)("matches/{matchId}"
         const stateByUid = match.stateByUid ?? {};
         const winnerState = stateByUid[winnerUid] ?? {};
         const loserState = stateByUid[loserUid] ?? {};
-        const winnerMatchKupa = Number(winnerState.trophies ?? 0);
-        const loserMatchKupa = Number(loserState.trophies ?? 0);
-        const winnerDelta = computeTrophyDeltaFromMatchKupa({
-            isWinner: true,
-            myMatchKupa: winnerMatchKupa,
-        });
-        const loserDelta = computeTrophyDeltaFromMatchKupa({
-            isWinner: false,
-            myMatchKupa: loserMatchKupa,
-        });
+        const winnerMatchKupa = Math.max(0, Math.floor(Number(winnerState.trophies ?? 0)));
+        const loserMatchKupa = Math.max(0, Math.floor(Number(loserState.trophies ?? 0)));
+        // Transfer rule:
+        // - everyone keeps the trophies they earned inside the match
+        // - winner also gets a win bonus
+        const winnerDelta = winnerMatchKupa + WIN_BONUS;
+        const loserDelta = loserMatchKupa;
         const [winnerSnap, loserSnap] = await Promise.all([
             tx.get(winnerRef),
             tx.get(loserRef),

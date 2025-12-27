@@ -4,6 +4,7 @@ exports.matchJoinInvite = void 0;
 const https_1 = require("firebase-functions/v2/https");
 const firestore_1 = require("../utils/firestore");
 const ensure_1 = require("../users/ensure");
+const energy_1 = require("../users/energy");
 exports.matchJoinInvite = (0, https_1.onCall)(async (req) => {
     const uid = req.auth?.uid;
     if (!uid)
@@ -47,9 +48,21 @@ exports.matchJoinInvite = (0, https_1.onCall)(async (req) => {
             throw new https_1.HttpsError("failed-precondition", "JOIN_USER_MISSING");
         const hostUser = hostUserSnap.data();
         const joinUser = joinUserSnap.data();
-        const hostEnergy = Number(hostUser?.economy?.energy ?? 0);
+        // Hourly energy refill for BOTH players must happen inside the same TX.
+        const nowMs = Date.now();
+        const { energyAfter: hostEnergy } = (0, energy_1.applyHourlyRefillTx)({
+            tx,
+            userRef: hostUserRef,
+            userData: hostUser,
+            nowMs,
+        });
+        const { energyAfter: joinEnergy } = (0, energy_1.applyHourlyRefillTx)({
+            tx,
+            userRef: joinUserRef,
+            userData: joinUser,
+            nowMs,
+        });
         const hostActive = Number(hostUser?.presence?.activeMatchCount ?? 0);
-        const joinEnergy = Number(joinUser?.economy?.energy ?? 0);
         const joinActive = Number(joinUser?.presence?.activeMatchCount ?? 0);
         if (hostEnergy <= 0)
             throw new https_1.HttpsError("failed-precondition", "HOST_ENERGY_ZERO");
@@ -78,10 +91,9 @@ exports.matchJoinInvite = (0, https_1.onCall)(async (req) => {
         });
         // Mark invite used
         tx.update(inviteRef, { status: "USED" });
-        // Increment active match count for BOTH users (now match is ACTIVE)
-        tx.update(hostUserRef, {
-            "presence.activeMatchCount": firestore_1.FieldValue.increment(1),
-        });
+        // Concurrency:
+        // - Host already consumed a slot when creating the invite.
+        // - Joiner consumes a slot now.
         tx.update(joinUserRef, {
             "presence.activeMatchCount": firestore_1.FieldValue.increment(1),
         });

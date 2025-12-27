@@ -4,6 +4,7 @@ exports.matchSubmitAnswer = void 0;
 const https_1 = require("firebase-functions/v2/https");
 const firestore_1 = require("../utils/firestore");
 const ensure_1 = require("../users/ensure");
+const energy_1 = require("../users/energy");
 const RANDOM_ID_MAX = 10_000_000;
 function randInt(maxExclusive) {
     return Math.floor(Math.random() * maxExclusive);
@@ -81,7 +82,13 @@ exports.matchSubmitAnswer = (0, https_1.onCall)(async (req) => {
         if (!userSnap.exists)
             throw new https_1.HttpsError("internal", "User doc missing");
         const userData = userSnap.data();
-        const currentEnergy = Number(userData?.economy?.energy ?? 0);
+        const nowMs = Date.now();
+        const { energyAfter: currentEnergy } = (0, energy_1.applyHourlyRefillTx)({
+            tx,
+            userRef,
+            userData,
+            nowMs,
+        });
         // Rule: energy 0 => cannot answer any question
         if (currentEnergy <= 0) {
             throw new https_1.HttpsError("failed-precondition", "ENERGY_ZERO");
@@ -146,9 +153,8 @@ exports.matchSubmitAnswer = (0, https_1.onCall)(async (req) => {
             nextMyState.wrongCount = (nextMyState.wrongCount ?? 0) + 1;
             const energyAfter = Math.max(0, currentEnergy - 1);
             // consume energy (global)
-            tx.update(userRef, {
-                "economy.energy": firestore_1.FieldValue.increment(-1),
-            });
+            // consume energy (global) - MUST be inside TX
+            tx.update(userRef, { "economy.energy": firestore_1.FieldValue.increment(-1) });
             // energy remains >0 => pass turn
             tx.update(matchRef, {
                 [`stateByUid.${uid}`]: nextMyState,
