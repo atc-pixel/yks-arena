@@ -16,11 +16,13 @@ function shortUid(uid: string) {
 export function ActiveMatchList({
   uid,
   matches,
+  energy,
   loading,
   error,
 }: {
   uid: string | null;
   matches: MatchWithId[];
+  energy: number;
   loading: boolean;
   error: string | null;
 }) {

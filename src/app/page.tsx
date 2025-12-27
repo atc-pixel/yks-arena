@@ -15,6 +15,10 @@ import { createInvite, joinInvite, cancelInvite } from "@/features/match/service
 import { useActiveMatches } from "@/features/match/hooks/useActiveMatches";
 import { ActiveMatchList } from "@/components/dashboard/ActiveMatchList";
 
+import { doc, onSnapshot } from "firebase/firestore";
+import { db } from "@/lib/firebase/client";
+
+
 
 export default function HomePage() {
   const router = useRouter();
@@ -34,9 +38,31 @@ export default function HomePage() {
   const [createdMatchId, setCreatedMatchId] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
+  
+
   useEffect(() => {
     if (authError) setError(authError);
   }, [authError]);
+
+    // ✅ Invite beklerken rakip girince otomatik maça git
+  useEffect(() => {
+    if (!createdMatchId) return;
+
+    const ref = doc(db, "matches", createdMatchId);
+
+    const unsub = onSnapshot(ref, (snap) => {
+      const m = snap.data() as any;
+      if (!m) return;
+
+      // Rakip join olduysa match ACTIVE olur (backend)
+      if (m.status === "ACTIVE") {
+        router.push(`/match/${createdMatchId}`);
+      }
+    });
+
+    return () => unsub();
+  }, [createdMatchId, router]);
+
 
   const canJoin = useMemo(() => joinCode.trim().length >= 4, [joinCode]);
 
@@ -51,6 +77,16 @@ export default function HomePage() {
 
   const playDisabledReason =
     energy <= 0 ? "Enerji Yok" : activeMatchCount >= energy ? "Maç Kotası Dolu" : null;
+
+  const cannotStartNewMatch = energy <= activeMatchCount;
+  const cannotPlayAtAll = energy === 0;
+
+  const startMatchReason = cannotPlayAtAll
+    ? "Şu an enerjin yok. Maç başlatmak için refilli bekle ya da hemen kutu aç!"
+    : cannotStartNewMatch
+      ? "Şu an yeni maç başlatamazsın."
+      : null;
+
 
   const onCreateInvite = async () => {
     setError(null);
@@ -164,9 +200,10 @@ export default function HomePage() {
           {busy === "create" ? "Hazırlanıyor..." : "Maç Ara"}
         </motion.button>
 
-        {!canPlay && playDisabledReason && (
-          <p className="mt-3 text-sm text-neutral-400">{playDisabledReason}</p>
+        {startMatchReason && (
+          <p className="mt-3 text-sm text-neutral-400">{startMatchReason}</p>
         )}
+
       </section>
 
       {/* STATS GRID */}
@@ -220,9 +257,10 @@ export default function HomePage() {
 
         {energy <= 0 && <p className="mt-2 text-xs text-neutral-500">Enerji 0 iken cevap veremezsin.</p>}
       </section>
-
+      
       <ActiveMatchList
         uid={uid}
+        energy={energy}
         matches={activeMatches}
         loading={activeLoading}
         error={activeError}

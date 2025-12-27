@@ -1,20 +1,21 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import {
-  collection,
-  onSnapshot,
-  orderBy,
-  query,
-  where,
-  type DocumentData,
-} from "firebase/firestore";
+import { collection, onSnapshot, query, where } from "firebase/firestore";
 import { db } from "@/lib/firebase/client";
 import type { MatchDoc, MatchStatus } from "@/features/match/types";
 
-export type MatchWithId = MatchDoc & { id: string; updatedAt?: any };
+export type MatchWithId = MatchDoc & { id: string };
 
 const ACTIVE_STATUSES: MatchStatus[] = ["WAITING", "ACTIVE"];
+
+function tsToMs(v: any): number {
+  // Firestore Timestamp (client) -> toMillis
+  if (v?.toMillis) return v.toMillis();
+  // Firestore Timestamp-like (admin) -> seconds/nanoseconds
+  if (typeof v?.seconds === "number") return v.seconds * 1000;
+  return 0;
+}
 
 export function useActiveMatches(uid: string | null) {
   const [matches, setMatches] = useState<MatchWithId[]>([]);
@@ -24,12 +25,11 @@ export function useActiveMatches(uid: string | null) {
   const qRef = useMemo(() => {
     if (!uid) return null;
 
-    // Firestore: where('status','in', [...]) + orderBy requires index
+    // ✅ Index-free query: only filters, no orderBy
     return query(
       collection(db, "matches"),
       where("players", "array-contains", uid),
-      where("status", "in", ACTIVE_STATUSES as unknown as DocumentData[]),
-      orderBy("updatedAt", "desc")
+      where("status", "in", ACTIVE_STATUSES as any)
     );
   }, [uid]);
 
@@ -47,10 +47,18 @@ export function useActiveMatches(uid: string | null) {
     const unsub = onSnapshot(
       qRef,
       (snap) => {
-        const list: MatchWithId[] = snap.docs.map((d) => {
-          const data = d.data() as MatchDoc;
-          return { id: d.id, ...(data as any) };
+        const list: MatchWithId[] = snap.docs.map((d) => ({
+          id: d.id,
+          ...(d.data() as MatchDoc),
+        }));
+
+        // ✅ Client-side sort: updatedAt varsa onu, yoksa createdAt
+        list.sort((a: any, b: any) => {
+          const am = tsToMs(a.updatedAt) || tsToMs(a.createdAt);
+          const bm = tsToMs(b.updatedAt) || tsToMs(b.createdAt);
+          return bm - am;
         });
+
         setMatches(list);
         setLoading(false);
       },
@@ -58,13 +66,7 @@ export function useActiveMatches(uid: string | null) {
         console.error(e);
         setMatches([]);
         setLoading(false);
-
-        // Index hatası / query hatası için kullanıcıya net mesaj
-        const msg =
-          e?.message?.includes("index") || e?.code === "failed-precondition"
-            ? "Active matches sorgusu için Firestore Index gerekiyor. Console → Firestore → Indexes kısmından önerilen index’i oluştur."
-            : e?.message || "Active matches sorgusu başarısız.";
-        setError(msg);
+        setError(e?.message || "Active matches sorgusu başarısız.");
       }
     );
 
