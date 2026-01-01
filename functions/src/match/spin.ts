@@ -1,6 +1,7 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { db } from "../utils/firestore";
 import { ALL_SYMBOLS, type SymbolKey } from "../shared/constants";
+import type { MatchDoc, PlayerState } from "../shared/types";
 
 const RANDOM_ID_MAX = 10_000_000;
 
@@ -76,13 +77,14 @@ export const matchSpin = onCall(async (req) => {
     const snap = await tx.get(matchRef);
     if (!snap.exists) throw new HttpsError("not-found", "Match not found");
 
-    const match = snap.data() as any;
+    const match = snap.data() as MatchDoc | undefined;
+    if (!match) throw new HttpsError("internal", "Match data is invalid");
 
     if (match.status !== "ACTIVE") throw new HttpsError("failed-precondition", "Match not active");
     if (match.turn?.phase !== "SPIN") throw new HttpsError("failed-precondition", "Not in SPIN phase");
     if (match.turn?.currentUid !== uid) throw new HttpsError("failed-precondition", "Not your turn");
 
-    const myState = match.stateByUid?.[uid];
+    const myState = match.stateByUid?.[uid] as PlayerState | undefined;
     if (!myState) throw new HttpsError("internal", "Player state missing");
 
     // already in middle of 2-question chain? don't allow spin

@@ -28,8 +28,12 @@ export type PlayerState = {
 
 export type TurnPhase = "SPIN" | "QUESTION" | "END";
 
+// DEPRECATED: Bu type artık kullanılmıyor, @/lib/validation/schemas'dan MatchDoc import edin
+// Backward compatibility için tutuluyor, yeni kod için schemas.ts kullanın
+import type { Timestamp } from "firebase/firestore";
+
 export type MatchDoc = {
-  createdAt: any;
+  createdAt: Timestamp;
   status: MatchStatus;
   mode: "RANDOM" | "INVITE";
   players: string[]; // [uid1, uid2]

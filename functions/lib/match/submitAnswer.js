@@ -82,6 +82,8 @@ exports.matchSubmitAnswer = (0, https_1.onCall)(async (req) => {
         if (!userSnap.exists)
             throw new https_1.HttpsError("internal", "User doc missing");
         const userData = userSnap.data();
+        if (!userData)
+            throw new https_1.HttpsError("internal", "User data is invalid");
         const nowMs = Date.now();
         const { energyAfter: currentEnergy } = (0, energy_1.applyHourlyRefillTx)({
             tx,
@@ -94,6 +96,8 @@ exports.matchSubmitAnswer = (0, https_1.onCall)(async (req) => {
             throw new https_1.HttpsError("failed-precondition", "ENERGY_ZERO");
         }
         const match = matchSnap.data();
+        if (!match)
+            throw new https_1.HttpsError("internal", "Match data is invalid");
         if (match.status !== "ACTIVE")
             throw new https_1.HttpsError("failed-precondition", "Match not active");
         if (match.turn?.phase !== "QUESTION")
@@ -126,6 +130,8 @@ exports.matchSubmitAnswer = (0, https_1.onCall)(async (req) => {
         if (!qSnap.exists)
             throw new https_1.HttpsError("failed-precondition", "Question doc missing");
         const q = qSnap.data();
+        if (!q)
+            throw new https_1.HttpsError("internal", "Question data is invalid");
         const correctAnswer = q.answer;
         const isCorrect = answer === correctAnswer;
         const kupaAwarded = isCorrect ? calcKupaForCorrectAnswer({ matchId, questionId, uid }) : 0;

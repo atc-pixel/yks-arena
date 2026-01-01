@@ -3,16 +3,18 @@
 import { useEffect, useState } from "react";
 import { doc, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase/client";
+import { QuestionDocSchema } from "@/lib/validation/schemas";
+import { safeParse } from "@/lib/validation/utils";
+import type { QuestionDoc } from "@/lib/validation/schemas";
 
-export type QuestionDoc = {
-  category: string;
-  question: string;
-  choices: Record<"A" | "B" | "C" | "D" | "E", string>;
-  answer: "A" | "B" | "C" | "D" | "E";
-  isActive?: boolean;
-  randomHash?: string;
-};
-
+/**
+ * Real-time question subscription hook with Zod validation
+ * 
+ * Architecture Decision:
+ * - Firestore'dan gelen question data'yı Zod ile validate ediyoruz
+ * - Invalid data gelirse null döner (app crash olmaz)
+ * - Type-safe QuestionDoc döner
+ */
 export function useQuestion(questionId: string | null | undefined) {
   const [question, setQuestion] = useState<QuestionDoc | null>(null);
   const [loading, setLoading] = useState(false);
@@ -28,7 +30,16 @@ export function useQuestion(questionId: string | null | undefined) {
     const unsub = onSnapshot(
       ref,
       (snap) => {
-        setQuestion((snap.exists() ? (snap.data() as any) : null) as QuestionDoc | null);
+        if (!snap.exists()) {
+          setQuestion(null);
+          setLoading(false);
+          return;
+        }
+
+        // Zod validation ile safe parse
+        const rawData = snap.data();
+        const validated = safeParse(QuestionDocSchema, rawData, `useQuestion:${questionId}`);
+        setQuestion(validated);
         setLoading(false);
       },
       (err) => {

@@ -1,23 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { motion } from "framer-motion";
 
 import { QuestionCard } from "@/components/game/QuestionCard";
 import { Choices } from "@/components/game/Choices";
 import { useSound } from "@/hooks/useSound";
-import type { ChoiceKey, SymbolKey } from "@/features/match/types";
-
-function cx(...xs: Array<string | false | null | undefined>) {
-  return xs.filter(Boolean).join(" ");
-}
-
-const SYMBOL_LABEL: Partial<Record<SymbolKey, string>> = {
-  MATEMATIK: "Matematik",
-  COGRAFYA: "Coğrafya",
-  SPOR: "Spor",
-  BILIM: "Bilim",
-};
+import { QuestionCategoryBadge } from "@/components/match/QuestionCategoryBadge";
+import { QuestionResultBadge } from "@/components/match/QuestionResultBadge";
+import { QuestionResultDisplay } from "@/components/match/QuestionResultDisplay";
+import type { ChoiceKey, SymbolKey } from "@/lib/validation/schemas";
 
 export type MatchLastResult = {
   uid: string;
@@ -147,23 +138,10 @@ export function QuestionPanel({
   return (
     <section className="rounded-3xl bg-neutral-900/60 p-6 ring-1 ring-neutral-800">
       <div className="mb-3 flex items-center justify-between gap-3">
-        <span className="rounded-full bg-neutral-950/50 px-3 py-1 text-xs text-neutral-200 ring-1 ring-neutral-800">
-          Kategori: <b>{category ? (SYMBOL_LABEL[category] ?? category) : "—"}</b>
-        </span>
+        <QuestionCategoryBadge category={category} />
 
         {reveal ? (
-          <motion.span
-            initial={{ scale: 0.9, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            className={cx(
-              "rounded-full px-3 py-1 text-xs font-semibold ring-1",
-              reveal.isCorrect
-                ? "bg-green-500/15 text-green-200 ring-green-500/30"
-                : "bg-red-500/15 text-red-200 ring-red-500/30"
-            )}
-          >
-            {reveal.isCorrect ? "✅ Doğru" : "❌ Yanlış"}
-          </motion.span>
+          <QuestionResultBadge isCorrect={reveal.isCorrect} />
         ) : (
           <span className="text-xs text-neutral-400">Seçimini yap</span>
         )}
@@ -197,19 +175,7 @@ export function QuestionPanel({
         </div>
       )}
 
-      {reveal && (
-        <motion.div
-          initial={{ opacity: 0, y: 6 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="mt-4 rounded-2xl bg-neutral-950/50 p-4 ring-1 ring-neutral-800"
-        >
-          <div className="text-xs text-neutral-400">Doğru cevap</div>
-          <div className="mt-1 text-sm font-semibold text-neutral-100">
-            {reveal.correctKey}
-          </div>
-          <div className="mt-2 text-xs text-neutral-500">Sonraki hamleye geçiliyor...</div>
-        </motion.div>
-      )}
+      {reveal && <QuestionResultDisplay correctKey={reveal.correctKey} />}
     </section>
   );
 }

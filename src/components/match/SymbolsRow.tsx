@@ -1,6 +1,6 @@
 "use client";
 
-import type { SymbolKey } from "@/features/match/types";
+import type { SymbolKey } from "@/lib/validation/schemas";
 
 const LABEL: Record<SymbolKey, string> = {
   BILIM: "Bilim",

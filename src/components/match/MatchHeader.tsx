@@ -1,25 +1,35 @@
-"use client";
+/**
+ * Match Header Component
+ * 
+ * Architecture Decision:
+ * - Match status ve turn info ayrı component'e taşındı
+ * - Reusable ve test edilebilir
+ */
 
 import { Home as HomeIcon } from "lucide-react";
+import { useRouter } from "next/navigation";
+import type { MatchStatus } from "@/lib/validation/schemas";
 
 function cx(...xs: Array<string | false | null | undefined>) {
   return xs.filter(Boolean).join(" ");
 }
 
-export function MatchHeader({
-  status,
-  isMyTurn,
-  onHome,
-}: {
-  status: string;
+type Props = {
+  status: MatchStatus;
   isMyTurn: boolean;
-  onHome: () => void;
-}) {
+  phase: string;
+  onGoHome: () => void;
+};
+
+export function MatchHeader({ status, isMyTurn, phase, onGoHome }: Props) {
   return (
-    <div className="mb-5 flex items-center justify-between">
+    <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
       <button
-        onClick={onHome}
-        className="inline-flex items-center gap-2 rounded-2xl bg-neutral-900/60 px-3 py-2 text-sm font-semibold text-neutral-200 ring-1 ring-neutral-800 hover:bg-neutral-900"
+        onClick={onGoHome}
+        className={cx(
+          "inline-flex items-center gap-2 rounded-2xl bg-neutral-900/60 px-3 py-2 text-sm font-semibold text-neutral-200 ring-1 ring-neutral-800",
+          "transition-transform active:scale-95"
+        )}
       >
         <HomeIcon className="h-4 w-4" />
         Ana Sayfa
@@ -46,6 +56,10 @@ export function MatchHeader({
           )}
         >
           {isMyTurn ? "Sıra sende" : "Rakipte"}
+        </span>
+
+        <span className="rounded-full bg-neutral-900 px-3 py-1 text-xs text-neutral-300 ring-1 ring-neutral-800">
+          Phase: <span className="font-semibold">{phase}</span>
         </span>
       </div>
     </div>

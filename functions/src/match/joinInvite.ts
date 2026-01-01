@@ -2,6 +2,8 @@ import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { db, FieldValue } from "../utils/firestore";
 import { ensureUserDoc } from "../users/ensure";
 import { applyHourlyRefillTx } from "../users/energy";
+import type { UserDoc } from "../users/types";
+import type { MatchDoc, InviteDoc } from "../shared/types";
 
 export const matchJoinInvite = onCall(async (req) => {
   const uid = req.auth?.uid;
@@ -19,15 +21,16 @@ export const matchJoinInvite = onCall(async (req) => {
     const inviteSnap = await tx.get(inviteRef);
     if (!inviteSnap.exists) throw new HttpsError("not-found", "Invite not found");
 
-    const invite = inviteSnap.data() as any;
-    if (invite.status !== "OPEN") throw new HttpsError("failed-precondition", "Invite not open");
+    const invite = inviteSnap.data() as InviteDoc | undefined;
+    if (!invite || invite.status !== "OPEN") throw new HttpsError("failed-precondition", "Invite not open");
 
     const realMatchRef = db.collection("matches").doc(invite.matchId);
 
     const matchSnap = await tx.get(realMatchRef);
     if (!matchSnap.exists) throw new HttpsError("not-found", "Match not found");
 
-    const match = matchSnap.data() as any;
+    const match = matchSnap.data() as MatchDoc | undefined;
+    if (!match) throw new HttpsError("internal", "Match data is invalid");
     if (match.status !== "WAITING") throw new HttpsError("failed-precondition", "Match not waiting");
 
     const hostUid = match.players?.[0];
@@ -47,8 +50,8 @@ export const matchJoinInvite = onCall(async (req) => {
     if (!hostUserSnap.exists) throw new HttpsError("failed-precondition", "HOST_USER_MISSING");
     if (!joinUserSnap.exists) throw new HttpsError("failed-precondition", "JOIN_USER_MISSING");
 
-    const hostUser = hostUserSnap.data() as any;
-    const joinUser = joinUserSnap.data() as any;
+    const hostUser = hostUserSnap.data() as UserDoc | undefined;
+    const joinUser = joinUserSnap.data() as UserDoc | undefined;
 
     // Hourly energy refill for BOTH players must happen inside the same TX.
     const nowMs = Date.now();
@@ -75,6 +78,9 @@ export const matchJoinInvite = onCall(async (req) => {
     if (joinActive >= joinEnergy) throw new HttpsError("failed-precondition", "MATCH_LIMIT_REACHED");
 
     // Transition match to ACTIVE
+    if (!match.players || match.players.length === 0) {
+      throw new HttpsError("internal", "Match players array missing or empty");
+    }
     tx.update(realMatchRef, {
       status: "ACTIVE",
       players: [hostUid, uid],
@@ -108,6 +114,7 @@ export const matchJoinInvite = onCall(async (req) => {
 
   // Return matchId from invite doc (non-transactional read is fine here)
   const inviteSnap2 = await inviteRef.get();
-  const invite2 = inviteSnap2.data() as any;
-  return { matchId: invite2?.matchId };
+  const invite2 = inviteSnap2.data() as InviteDoc | undefined;
+  if (!invite2?.matchId) throw new HttpsError("internal", "Invite matchId missing");
+  return { matchId: invite2.matchId };
 });

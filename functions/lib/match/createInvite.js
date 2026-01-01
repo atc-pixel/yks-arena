@@ -34,6 +34,7 @@ exports.matchCreateInvite = (0, https_1.onCall)(async (req) => {
         const user = userSnap.data();
         const nowMs = Date.now();
         const { energyAfter: energy } = (0, energy_1.applyHourlyRefillTx)({ tx, userRef, userData: user, nowMs });
+        // Type-safe presence check
         const activeMatchCount = Number(user?.presence?.activeMatchCount ?? 0);
         // Gate: Energy > 0 AND Energy > activeMatchCount
         if (energy <= 0)

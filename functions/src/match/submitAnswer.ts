@@ -1,10 +1,9 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { db, FieldValue } from "../utils/firestore";
-import type { SymbolKey } from "../shared/constants";
+import type { SymbolKey, ChoiceKey, MatchDoc, QuestionDoc } from "../shared/types";
+import type { UserDoc } from "../users/types";
 import { ensureUserDoc } from "../users/ensure";
 import { applyHourlyRefillTx } from "../users/energy";
-
-type ChoiceKey = "A" | "B" | "C" | "D" | "E";
 
 const RANDOM_ID_MAX = 10_000_000;
 
@@ -104,7 +103,8 @@ export const matchSubmitAnswer = onCall(async (req) => {
     const userSnap = await tx.get(userRef);
     if (!userSnap.exists) throw new HttpsError("internal", "User doc missing");
 
-    const userData = userSnap.data() as any;
+    const userData = userSnap.data() as UserDoc | undefined;
+    if (!userData) throw new HttpsError("internal", "User data is invalid");
     const nowMs = Date.now();
     const { energyAfter: currentEnergy } = applyHourlyRefillTx({
       tx,
@@ -118,7 +118,8 @@ export const matchSubmitAnswer = onCall(async (req) => {
       throw new HttpsError("failed-precondition", "ENERGY_ZERO");
     }
 
-    const match = matchSnap.data() as any;
+    const match = matchSnap.data() as MatchDoc | undefined;
+    if (!match) throw new HttpsError("internal", "Match data is invalid");
 
     if (match.status !== "ACTIVE") throw new HttpsError("failed-precondition", "Match not active");
     if (match.turn?.phase !== "QUESTION") throw new HttpsError("failed-precondition", "Not in QUESTION phase");
@@ -149,7 +150,8 @@ export const matchSubmitAnswer = onCall(async (req) => {
     const qSnap = await tx.get(qRef);
     if (!qSnap.exists) throw new HttpsError("failed-precondition", "Question doc missing");
 
-    const q = qSnap.data() as any;
+    const q = qSnap.data() as QuestionDoc | undefined;
+    if (!q) throw new HttpsError("internal", "Question data is invalid");
     const correctAnswer: ChoiceKey = q.answer;
     const isCorrect = answer === correctAnswer;
 

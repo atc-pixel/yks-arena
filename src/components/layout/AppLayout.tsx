@@ -7,11 +7,11 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Home, Trophy, User as UserIcon, Zap } from "lucide-react";
 
 import { cn } from "@/lib/utils/cn";
-import type { User } from "@/features/users/hooks/useUser";
+import type { UserDoc } from "@/lib/validation/schemas";
 
 type Props = {
   children: React.ReactNode;
-  user: User | null;
+  user: UserDoc | null;
   userLoading: boolean;
   userError?: string | null;
 };

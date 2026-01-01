@@ -60,6 +60,8 @@ exports.matchSpin = (0, https_1.onCall)(async (req) => {
         if (!snap.exists)
             throw new https_1.HttpsError("not-found", "Match not found");
         const match = snap.data();
+        if (!match)
+            throw new https_1.HttpsError("internal", "Match data is invalid");
         if (match.status !== "ACTIVE")
             throw new https_1.HttpsError("failed-precondition", "Match not active");
         if (match.turn?.phase !== "SPIN")

@@ -4,8 +4,9 @@ import { useEffect, useState } from "react";
 import { motion, useAnimation } from "framer-motion";
 import { Loader2, Sparkles, Disc3 } from "lucide-react";
 
-import type { SymbolKey } from "@/features/match/types";
+import type { SymbolKey } from "@/lib/validation/schemas";
 import { useSound } from "@/hooks/useSound";
+import type { SpinResponse } from "@/features/match/services/match.api";
 
 function cx(...xs: Array<string | false | null | undefined>) {
   return xs.filter(Boolean).join(" ");
@@ -26,7 +27,7 @@ export function SpinPanel({
 }: {
   canSpin: boolean;
   busy: boolean;
-  onSpin: () => Promise<{ symbol?: SymbolKey } | void>;
+  onSpin: () => Promise<SpinResponse | void>;
   /** Pass match.turn.challengeSymbol to show the latest category */
   lastSymbol?: SymbolKey | null;
 }) {
@@ -68,12 +69,15 @@ export function SpinPanel({
 
     try {
       startSpinAnim();
-      const res: any = await onSpin();
+      const res = await onSpin();
       stopSpin();
       await stopSpinAnim();
 
-      const s: SymbolKey | undefined = res?.symbol;
-      if (s) setRevealSymbol(s);
+      // Type-safe symbol extraction
+      if (res && "symbol" in res) {
+        const s = res.symbol;
+        if (s) setRevealSymbol(s);
+      }
     } catch {
       stopSpin();
       setSpinning(false);

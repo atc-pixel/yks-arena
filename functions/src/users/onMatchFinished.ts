@@ -1,6 +1,6 @@
 import { onDocumentUpdated } from "firebase-functions/v2/firestore";
 import { db, FieldValue } from "../utils/firestore";
-import { USER_COLLECTION } from "./types";
+import { USER_COLLECTION, type UserDoc } from "./types";
 import { calcLevelFromTrophies, clampMin } from "./utils";
 
 type MatchStatus = "WAITING" | "ACTIVE" | "FINISHED";
@@ -90,8 +90,15 @@ export const matchOnFinished = onDocumentUpdated(
         return;
       }
 
-      const winnerData = winnerSnap.data() as any;
-      const loserData = loserSnap.data() as any;
+      const winnerData = winnerSnap.data() as UserDoc | undefined;
+      const loserData = loserSnap.data() as UserDoc | undefined;
+      if (!winnerData || !loserData) {
+        // User data missing, mark as processed and skip
+        tx.update(matchRef, {
+          progression: { phase1ProcessedAt: FieldValue.serverTimestamp() },
+        });
+        return;
+      }
 
       // trophies -> level
       const winnerOldTrophies = Number(winnerData.trophies ?? 0);

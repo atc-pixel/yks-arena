@@ -20,6 +20,10 @@ export interface UserEconomy {
   lastEnergyRefill: Timestamp;
 }
 
+export interface UserPresence {
+  activeMatchCount: number;
+}
+
 export interface UserDoc {
   displayName: string;
   photoURL: string | null;
@@ -30,6 +34,7 @@ export interface UserDoc {
   league: UserLeague;
   stats: UserStats;
   economy: UserEconomy;
+  presence?: UserPresence;
 
   createdAt: Timestamp;
 }

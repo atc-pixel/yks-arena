@@ -4,6 +4,7 @@
       "collectionGroup": "questions",
       "queryScope": "COLLECTION",
       "fields": [
+        { "fieldPath": "isActive", "order": "ASCENDING" },
         { "fieldPath": "category", "order": "ASCENDING" },
         { "fieldPath": "randomId", "order": "ASCENDING" }
       ]
@@ -12,6 +13,7 @@
       "collectionGroup": "questions",
       "queryScope": "COLLECTION",
       "fields": [
+        { "fieldPath": "isActive", "order": "ASCENDING" },
         { "fieldPath": "category", "order": "ASCENDING" },
         { "fieldPath": "randomId", "order": "DESCENDING" }
       ]

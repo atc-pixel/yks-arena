@@ -2,6 +2,8 @@ import * as functions from "firebase-functions";
 import { db } from "../utils/firestore";
 import { applyHourlyRefillTx } from "../users/energy";
 import { FieldValue } from "firebase-admin/firestore";
+import type { InviteDoc, MatchDoc } from "../shared/types";
+import type { UserDoc } from "../users/types";
 
 /**
  * Cancels an invite that is still WAITING.
@@ -26,22 +28,23 @@ export const cancelInvite = functions
         throw new functions.https.HttpsError("not-found", "Invite not found.");
       }
 
-      const invite = inviteSnap.data() as any;
+      const invite = inviteSnap.data() as InviteDoc | undefined;
+      if (!invite) throw new functions.https.HttpsError("internal", "Invite data is invalid");
 
-      // Must be host
-      const hostUid = invite?.hostUid;
+      // Must be host (createdBy is the host)
+      const hostUid = invite.createdBy;
       if (!hostUid || hostUid !== uid) {
         throw new functions.https.HttpsError("permission-denied", "Only host can cancel this invite.");
       }
 
-      const status = invite?.status;
-      const matchId = invite?.matchId;
+      const status = invite.status;
+      const matchId = invite.matchId;
 
       // Idempotency: if already cancelled/closed, do nothing
       if (status === "CANCELLED" || status === "CLOSED") return;
 
-      // Only WAITING invites can be cancelled safely
-      if (status !== "WAITING") {
+      // Only OPEN invites can be cancelled safely
+      if (status !== "OPEN") {
         throw new functions.https.HttpsError(
           "failed-precondition",
           `Invite cannot be cancelled in status=${status}.`
@@ -63,16 +66,19 @@ export const cancelInvite = functions
       }
 
       // Optional: apply refill (doesn't matter much here, but keeps economy consistent)
+      const hostUser = hostUserSnap.data() as UserDoc | undefined;
+      if (!hostUser) throw new functions.https.HttpsError("internal", "Host user data is invalid");
+      
       const nowMs = Date.now();
       applyHourlyRefillTx({
         tx,
         userRef: hostUserRef,
-        userData: hostUserSnap.data(),
+        userData: hostUser,
         nowMs,
       });
 
       // Refund slot: activeMatchCount -= 1 (clamp to >=0 by doing read+set)
-      const currentActive = Number(hostUserSnap.data()?.presence?.activeMatchCount ?? 0);
+      const currentActive = Number(hostUser.presence?.activeMatchCount ?? 0);
       const nextActive = Math.max(0, currentActive - 1);
       tx.update(hostUserRef, { "presence.activeMatchCount": nextActive });
 
@@ -84,8 +90,9 @@ export const cancelInvite = functions
 
       // Close match (only if exists and still in a cancellable state)
       if (matchSnap.exists) {
-        const match = matchSnap.data() as any;
-        const matchStatus = match?.status;
+        const match = matchSnap.data() as MatchDoc | undefined;
+        if (!match) return; // Match data invalid, skip
+        const matchStatus = match.status;
 
         // Only cancel if match not already finished/started, keep it conservative
         // Typical values: "WAITING" -> "ACTIVE" -> "FINISHED"

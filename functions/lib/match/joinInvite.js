@@ -20,13 +20,15 @@ exports.matchJoinInvite = (0, https_1.onCall)(async (req) => {
         if (!inviteSnap.exists)
             throw new https_1.HttpsError("not-found", "Invite not found");
         const invite = inviteSnap.data();
-        if (invite.status !== "OPEN")
+        if (!invite || invite.status !== "OPEN")
             throw new https_1.HttpsError("failed-precondition", "Invite not open");
         const realMatchRef = firestore_1.db.collection("matches").doc(invite.matchId);
         const matchSnap = await tx.get(realMatchRef);
         if (!matchSnap.exists)
             throw new https_1.HttpsError("not-found", "Match not found");
         const match = matchSnap.data();
+        if (!match)
+            throw new https_1.HttpsError("internal", "Match data is invalid");
         if (match.status !== "WAITING")
             throw new https_1.HttpsError("failed-precondition", "Match not waiting");
         const hostUid = match.players?.[0];
@@ -73,6 +75,9 @@ exports.matchJoinInvite = (0, https_1.onCall)(async (req) => {
         if (joinActive >= joinEnergy)
             throw new https_1.HttpsError("failed-precondition", "MATCH_LIMIT_REACHED");
         // Transition match to ACTIVE
+        if (!match.players || match.players.length === 0) {
+            throw new https_1.HttpsError("internal", "Match players array missing or empty");
+        }
         tx.update(realMatchRef, {
             status: "ACTIVE",
             players: [hostUid, uid],
@@ -101,5 +106,7 @@ exports.matchJoinInvite = (0, https_1.onCall)(async (req) => {
     // Return matchId from invite doc (non-transactional read is fine here)
     const inviteSnap2 = await inviteRef.get();
     const invite2 = inviteSnap2.data();
-    return { matchId: invite2?.matchId };
+    if (!invite2?.matchId)
+        throw new https_1.HttpsError("internal", "Invite matchId missing");
+    return { matchId: invite2.matchId };
 });

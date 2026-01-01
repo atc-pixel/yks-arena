@@ -1,44 +1,23 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { doc, onSnapshot, type Timestamp } from "firebase/firestore";
+import { doc, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase/client";
+import { UserDocSchema } from "@/lib/validation/schemas";
+import { safeParse } from "@/lib/validation/utils";
+import type { UserDoc } from "@/lib/validation/schemas";
 
-export type LeagueName = "BRONZE" | "SILVER" | "GOLD" | "PLATINUM" | "DIAMOND";
-
-export interface User {
-  displayName: string;
-  photoURL: string | null;
-
-  trophies: number;
-  level: number;
-
-  league: {
-    currentLeague: LeagueName;
-    weeklyScore: number;
-  };
-
-  stats: {
-    totalMatches: number;
-    totalWins: number;
-  };
-
-  economy: {
-    energy: number;
-    maxEnergy: number;
-    lastEnergyRefill: Timestamp;
-  };
-
-  // backend’de kullanılıyor; ensure aşamasında yoksa da UI’da 0 kabul edeceğiz
-  presence?: {
-    activeMatchCount: number;
-  };
-
-  createdAt: Timestamp;
-}
-
+/**
+ * Real-time user subscription hook with Zod validation
+ * 
+ * Architecture Decision:
+ * - Firestore'dan gelen user data'yı Zod ile validate ediyoruz
+ * - Invalid data gelirse null döner (app crash olmaz)
+ * - Presence field optional, Zod schema'da zaten optional olarak tanımlı
+ * - Type-safe UserDoc döner
+ */
 export function useUser(uid: string | null) {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<UserDoc | null>(null);
   const [loading, setLoading] = useState(Boolean(uid));
   const [error, setError] = useState<string | null>(null);
 
@@ -64,13 +43,11 @@ export function useUser(uid: string | null) {
           return;
         }
 
-        const data = snap.data() as any;
-
-        // presence yoksa 0 kabul
-        if (!data.presence) data.presence = { activeMatchCount: 0 };
-        if (typeof data.presence.activeMatchCount !== "number") data.presence.activeMatchCount = 0;
-
-        setUser(data as User);
+        // Zod validation ile safe parse
+        // Presence field zaten schema'da optional, backend'den gelmezse undefined olur
+        const rawData = snap.data();
+        const validated = safeParse(UserDocSchema, rawData, `useUser:${uid}`);
+        setUser(validated);
         setLoading(false);
       },
       (e) => {
@@ -81,7 +58,7 @@ export function useUser(uid: string | null) {
     );
 
     return () => unsub();
-  }, [ref]);
+  }, [ref, uid]);
 
   return { user, loading, error };
 }

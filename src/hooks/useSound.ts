@@ -24,7 +24,10 @@ function safePlay(a: HTMLAudioElement | undefined | null, { loop = false } = {})
     // If the element hasn't loaded yet, play() may reject—ignore.
     a.currentTime = 0;
     const p = a.play();
-    if (p && typeof (p as any).catch === "function") (p as any).catch(() => void 0);
+    // Type guard for Promise (play() returns Promise<void> | undefined)
+    if (p instanceof Promise) {
+      p.catch(() => void 0);
+    }
   } catch {
     // ignore
   }

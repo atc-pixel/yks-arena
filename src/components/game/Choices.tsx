@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import type { ChoiceKey } from "@/features/match/types";
+import type { ChoiceKey } from "@/lib/validation/schemas";
 
 type ChoiceState = {
   /** User's last tapped option */

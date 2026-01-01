@@ -3,20 +3,34 @@
 import { useEffect, useMemo, useState } from "react";
 import { collection, onSnapshot, query, where } from "firebase/firestore";
 import { db } from "@/lib/firebase/client";
-import type { MatchDoc, MatchStatus } from "@/features/match/types";
+import { MatchDocSchema } from "@/lib/validation/schemas";
+import { safeParse } from "@/lib/validation/utils";
+import type { MatchDoc, MatchStatus } from "@/lib/validation/schemas";
 
 export type MatchWithId = MatchDoc & { id: string };
 
 const ACTIVE_STATUSES: MatchStatus[] = ["WAITING", "ACTIVE"];
 
-function tsToMs(v: any): number {
+function tsToMs(v: unknown): number {
   // Firestore Timestamp (client) -> toMillis
-  if (v?.toMillis) return v.toMillis();
+  if (v && typeof v === "object" && "toMillis" in v && typeof (v as { toMillis: () => number }).toMillis === "function") {
+    return (v as { toMillis: () => number }).toMillis();
+  }
   // Firestore Timestamp-like (admin) -> seconds/nanoseconds
-  if (typeof v?.seconds === "number") return v.seconds * 1000;
+  if (v && typeof v === "object" && "seconds" in v && typeof (v as { seconds: number }).seconds === "number") {
+    return (v as { seconds: number }).seconds * 1000;
+  }
   return 0;
 }
 
+/**
+ * Active matches subscription hook with Zod validation
+ * 
+ * Architecture Decision:
+ * - Her match document'i Zod ile validate ediyoruz
+ * - Invalid match'ler filtrelenir (list'den çıkarılır)
+ * - Type-safe MatchDoc array döner
+ */
 export function useActiveMatches(uid: string | null) {
   const [matches, setMatches] = useState<MatchWithId[]>([]);
   const [loading, setLoading] = useState(Boolean(uid));
@@ -29,7 +43,7 @@ export function useActiveMatches(uid: string | null) {
     return query(
       collection(db, "matches"),
       where("players", "array-contains", uid),
-      where("status", "in", ACTIVE_STATUSES as any)
+      where("status", "in", ACTIVE_STATUSES)
     );
   }, [uid]);
 
@@ -47,19 +61,24 @@ export function useActiveMatches(uid: string | null) {
     const unsub = onSnapshot(
       qRef,
       (snap) => {
-        const list: MatchWithId[] = snap.docs.map((d) => ({
-          id: d.id,
-          ...(d.data() as MatchDoc),
-        }));
+        // Zod validation ile her match'i parse et
+        const validatedMatches: MatchWithId[] = snap.docs
+          .map((d) => {
+            const rawData = d.data();
+            const validated = safeParse(MatchDocSchema, rawData, `useActiveMatches:${d.id}`);
+            if (!validated) return null; // Invalid match'leri filtrele
+            return { id: d.id, ...validated };
+          })
+          .filter((m): m is MatchWithId => m !== null);
 
         // ✅ Client-side sort: updatedAt varsa onu, yoksa createdAt
-        list.sort((a: any, b: any) => {
-          const am = tsToMs(a.updatedAt) || tsToMs(a.createdAt);
-          const bm = tsToMs(b.updatedAt) || tsToMs(b.createdAt);
+        validatedMatches.sort((a, b) => {
+          const am = tsToMs((b as unknown as { updatedAt?: unknown }).updatedAt) || tsToMs(a.createdAt);
+          const bm = tsToMs((a as unknown as { updatedAt?: unknown }).updatedAt) || tsToMs(b.createdAt);
           return bm - am;
         });
 
-        setMatches(list);
+        setMatches(validatedMatches);
         setLoading(false);
       },
       (e) => {

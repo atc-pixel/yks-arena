@@ -28,6 +28,10 @@ async function ensureUserDoc(uid) {
     catch (e) {
         // ALREADY_EXISTS: ignore
         // Firestore admin error codes farklı gelebiliyor; güvenli ignore:
+        // Error'u log'layabiliriz ama throw etmiyoruz
+        if (process.env.NODE_ENV === "development") {
+            console.log("User doc already exists (expected):", e);
+        }
         return;
     }
 }

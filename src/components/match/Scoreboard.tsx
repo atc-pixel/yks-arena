@@ -1,6 +1,6 @@
 "use client";
 
-import type { SymbolKey } from "@/features/match/types";
+import type { SymbolKey } from "@/lib/validation/schemas";
 import { SymbolsRow } from "./SymbolsRow";
 
 export function Scoreboard({

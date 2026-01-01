@@ -1,4 +1,5 @@
 import { FieldValue } from "../utils/firestore";
+import type { UserDoc } from "./types";
 
 /**
  * Hourly refill rule:
@@ -8,7 +9,7 @@ import { FieldValue } from "../utils/firestore";
 export function applyHourlyRefillTx(params: {
   tx: FirebaseFirestore.Transaction;
   userRef: FirebaseFirestore.DocumentReference;
-  userData: any;
+  userData: UserDoc | null | undefined;
   nowMs: number;
   hourMs?: number;
 }): { refilled: boolean; energyAfter: number } {

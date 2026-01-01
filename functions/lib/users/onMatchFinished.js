@@ -61,6 +61,13 @@ exports.matchOnFinished = (0, firestore_1.onDocumentUpdated)("matches/{matchId}"
         }
         const winnerData = winnerSnap.data();
         const loserData = loserSnap.data();
+        if (!winnerData || !loserData) {
+            // User data missing, mark as processed and skip
+            tx.update(matchRef, {
+                progression: { phase1ProcessedAt: firestore_2.FieldValue.serverTimestamp() },
+            });
+            return;
+        }
         // trophies -> level
         const winnerOldTrophies = Number(winnerData.trophies ?? 0);
         const loserOldTrophies = Number(loserData.trophies ?? 0);

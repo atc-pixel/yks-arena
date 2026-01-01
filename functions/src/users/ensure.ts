@@ -32,9 +32,13 @@ export async function ensureUserDoc(uid: string) {
   // create() exists-check atomik. Eğer zaten varsa error verir -> ignore.
   try {
     await userRef.create(doc);
-  } catch (e: any) {
+  } catch (e: unknown) {
     // ALREADY_EXISTS: ignore
     // Firestore admin error codes farklı gelebiliyor; güvenli ignore:
+    // Error'u log'layabiliriz ama throw etmiyoruz
+    if (process.env.NODE_ENV === "development") {
+      console.log("User doc already exists (expected):", e);
+    }
     return;
   }
 }

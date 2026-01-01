@@ -4,6 +4,7 @@ import { nanoid } from "nanoid";
 import { db, FieldValue, Timestamp } from "../utils/firestore";
 import { ensureUserDoc } from "../users/ensure";
 import { applyHourlyRefillTx } from "../users/energy";
+import type { UserDoc } from "../users/types";
 
 async function allocateInviteCode(len = 6, tries = 5) {
   for (let i = 0; i < tries; i++) {
@@ -31,10 +32,11 @@ export const matchCreateInvite = onCall(async (req) => {
     if (!userSnap.exists) throw new HttpsError("internal", "User doc missing");
 
     // Hourly refill must be checked inside the TX.
-    const user = userSnap.data() as any;
+    const user = userSnap.data() as UserDoc | undefined;
     const nowMs = Date.now();
     const { energyAfter: energy } = applyHourlyRefillTx({ tx, userRef, userData: user, nowMs });
 
+    // Type-safe presence check
     const activeMatchCount = Number(user?.presence?.activeMatchCount ?? 0);
 
     // Gate: Energy > 0 AND Energy > activeMatchCount
