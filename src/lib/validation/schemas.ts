@@ -53,7 +53,7 @@ export const CategorySchema = z.enum(["BILIM", "COGRAFYA", "SPOR", "MATEMATIK"])
 export const ChoiceKeySchema = z.enum(["A", "B", "C", "D", "E"]);
 export const MatchStatusSchema = z.enum(["WAITING", "ACTIVE", "FINISHED", "CANCELLED"]);
 export const SymbolKeySchema = z.enum(["BILIM", "COGRAFYA", "SPOR", "MATEMATIK"]);
-export const TurnPhaseSchema = z.enum(["SPIN", "QUESTION", "END"]);
+export const TurnPhaseSchema = z.enum(["SPIN", "QUESTION", "RESULT", "END"]);
 export const MatchModeSchema = z.enum(["RANDOM", "INVITE"]);
 export const LeagueNameSchema = z.enum(["BRONZE", "SILVER", "GOLD", "PLATINUM", "DIAMOND"]);
 
@@ -113,6 +113,7 @@ export const MatchTurnSchema = z.object({
   challengeSymbol: SymbolKeySchema.nullable(),
   streak: z.number(),
   activeQuestionId: z.string().nullable(),
+  nextQuestionId: z.string().nullable().optional(), // Q1 doğru olduğunda Q2'yi burada sakla (RESULT phase'inde)
   usedQuestionIds: z.array(z.string()),
   lastResult: TurnLastResultSchema.nullable().optional(),
   streakSymbol: SymbolKeySchema.nullable().optional(),
@@ -180,6 +181,9 @@ export const SpinInputSchema = z.object({
 export const SubmitAnswerInputSchema = z.object({
   matchId: z.string().min(1),
   answer: ChoiceKeySchema,
+});
+export const ContinueToNextQuestionInputSchema = z.object({
+  matchId: z.string().min(1),
 });
 export const CancelInviteInputSchema = z.object({
   inviteId: z.string().min(1),

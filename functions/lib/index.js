@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.cancelInvite = exports.matchOnFinished = exports.ensureUserProfile = exports.matchSubmitAnswer = exports.matchSpin = exports.matchJoinInvite = exports.matchCreateInvite = void 0;
+exports.cancelInvite = exports.matchOnFinished = exports.ensureUserProfile = exports.matchContinueToNextQuestion = exports.matchSubmitAnswer = exports.matchSpin = exports.matchJoinInvite = exports.matchCreateInvite = void 0;
 var createInvite_1 = require("./match/createInvite");
 Object.defineProperty(exports, "matchCreateInvite", { enumerable: true, get: function () { return createInvite_1.matchCreateInvite; } });
 var joinInvite_1 = require("./match/joinInvite");
@@ -9,6 +9,8 @@ var spin_1 = require("./match/spin");
 Object.defineProperty(exports, "matchSpin", { enumerable: true, get: function () { return spin_1.matchSpin; } });
 var submitAnswer_1 = require("./match/submitAnswer");
 Object.defineProperty(exports, "matchSubmitAnswer", { enumerable: true, get: function () { return submitAnswer_1.matchSubmitAnswer; } });
+var continueToNextQuestion_1 = require("./match/continueToNextQuestion");
+Object.defineProperty(exports, "matchContinueToNextQuestion", { enumerable: true, get: function () { return continueToNextQuestion_1.matchContinueToNextQuestion; } });
 var ensureUserProfile_1 = require("./users/ensureUserProfile");
 Object.defineProperty(exports, "ensureUserProfile", { enumerable: true, get: function () { return ensureUserProfile_1.ensureUserProfile; } });
 var onMatchFinished_1 = require("./users/onMatchFinished");

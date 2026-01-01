@@ -8,6 +8,7 @@ import {
   JoinInviteInputSchema,
   SpinInputSchema,
   SubmitAnswerInputSchema,
+  ContinueToNextQuestionInputSchema,
   CancelInviteInputSchema,
 } from "@/lib/validation/schemas";
 import { strictParse } from "@/lib/validation/utils";
@@ -34,6 +35,7 @@ const FN = {
   joinInvite: "matchJoinInvite",
   spin: "matchSpin",
   submitAnswer: "matchSubmitAnswer",
+  continueToNextQuestion: "matchContinueToNextQuestion",
   cancelInvite: "cancelInvite", // <-- backend export ismine göre ayarla
 } as const;
 
@@ -83,6 +85,18 @@ export async function submitAnswer(matchId: string, answer: string) {
   const fn = httpsCallable<{ matchId: string; answer: string }, SubmitAnswerResponse>(
     functions,
     FN.submitAnswer
+  );
+  const res = await fn(validated);
+  return res.data;
+}
+
+export async function continueToNextQuestion(matchId: string) {
+  // Input validation
+  const validated = strictParse(ContinueToNextQuestionInputSchema, { matchId }, "continueToNextQuestion");
+  
+  const fn = httpsCallable<{ matchId: string }, SubmitAnswerResponse>(
+    functions,
+    FN.continueToNextQuestion
   );
   const res = await fn(validated);
   return res.data;

@@ -185,7 +185,7 @@ exports.matchSubmitAnswer = (0, https_1.onCall)(async (req) => {
         }
         // CORRECT => add match kupa (question-based)
         nextMyState.trophies = (nextMyState.trophies ?? 0) + kupaAwarded;
-        // If Q1 correct => immediately ask Q2 (same category, no spin)
+        // If Q1 correct => show result, prepare Q2 but wait for user to continue
         if (questionIndex === 1) {
             const nextQuestionId = await pickRandomQuestionIdTx({
                 tx,
@@ -196,22 +196,24 @@ exports.matchSubmitAnswer = (0, https_1.onCall)(async (req) => {
             tx.update(matchRef, {
                 [`stateByUid.${uid}`]: nextMyState,
                 "turn.lastResult": baseResult,
-                "turn.phase": "QUESTION",
+                "turn.phase": "RESULT", // ✅ Show result, wait for continue
                 "turn.currentUid": uid, // ✅ stay
                 "turn.challengeSymbol": symbol, // ✅ same category
-                "turn.activeQuestionId": nextQuestionId,
+                "turn.activeQuestionId": questionId, // ✅ Keep current question ID (so UI shows result)
+                "turn.nextQuestionId": nextQuestionId, // ✅ Store Q2 for when user continues
                 "turn.usedQuestionIds": [...usedArr, nextQuestionId],
-                "turn.questionIndex": 2, // ✅ second question
+                "turn.questionIndex": 1, // ✅ Still on Q1 (will become 2 after continue)
             });
             return {
                 matchId,
                 status: "ACTIVE",
-                phase: "QUESTION",
+                phase: "RESULT",
                 isCorrect: true,
                 nextCurrentUid: uid,
-                questionIndex: 2,
+                questionIndex: 1,
                 symbol,
-                questionId: nextQuestionId,
+                questionId: questionId, // Current question (for result display)
+                nextQuestionId: nextQuestionId, // Next question (will be shown after continue)
                 kupaAwarded,
                 energyAfter: currentEnergy,
             };

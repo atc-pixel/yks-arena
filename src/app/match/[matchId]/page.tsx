@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import { useParams, useRouter } from "next/navigation";
 import { useMatchPageLogic } from "@/features/match/hooks/useMatchPageLogic";
@@ -8,6 +9,7 @@ import { LastResultCard } from "@/components/match/LastResultCard";
 import { PlayerScoreboard } from "@/components/match/PlayerScoreboard";
 import { SpinPanel } from "@/components/match/SpinPanel";
 import { QuestionPanel, type MatchLastResult } from "@/components/match/QuestionPanel";
+import { useSound } from "@/hooks/useSound";
 
 /**
  * Match Page Component
@@ -21,6 +23,8 @@ export default function MatchPage() {
   const params = useParams<{ matchId: string }>();
   const matchId = params.matchId;
   const router = useRouter();
+  const { playCorrect } = useSound();
+  const playedSymbolRef = useRef<string | null>(null);
 
   const {
     match,
@@ -40,9 +44,26 @@ export default function MatchPage() {
     error,
     onSpin,
     onSubmit,
+    onContinue,
     canSpin,
     canAnswer,
+    canContinue,
   } = useMatchPageLogic(matchId);
+
+  // Sembol kazanıldığında doğru cevap sesi çal
+  useEffect(() => {
+    if (!lastResult || !myUid) return;
+    if (lastResult.uid !== myUid) return;
+    if (!lastResult.earnedSymbol) return;
+
+    // Aynı sembol için tekrar çalma (at timestamp ile unique key)
+    const key = `${lastResult.earnedSymbol}:${lastResult.at}`;
+    if (playedSymbolRef.current === key) return;
+    playedSymbolRef.current = key;
+
+    // Sembol kazanıldığında doğru cevap sesi çal
+    playCorrect();
+  }, [lastResult, myUid, playCorrect]);
 
   if (loading) {
     return (
@@ -121,6 +142,24 @@ export default function MatchPage() {
               choices={question?.choices ?? null}
               lastResult={lastResult as MatchLastResult | null}
               onSubmit={onSubmit}
+              onContinue={onContinue}
+              canContinue={canContinue}
+            />
+          )}
+
+          {phase === "RESULT" && (
+            <QuestionPanel
+              canAnswer={false}
+              busy={busy !== null}
+              myUid={myUid}
+              activeQuestionId={activeQuestionId}
+              category={challengeSymbol}
+              questionText={questionLoading ? "Soru yükleniyor..." : (question?.question ?? "Soru bulunamadı.")}
+              choices={question?.choices ?? null}
+              lastResult={lastResult as MatchLastResult | null}
+              onSubmit={onSubmit}
+              onContinue={onContinue}
+              canContinue={canContinue}
             />
           )}
         </div>

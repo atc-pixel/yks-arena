@@ -13,7 +13,7 @@ import { Timestamp } from "firebase-admin/firestore";
 
 export type MatchStatus = "WAITING" | "ACTIVE" | "FINISHED" | "CANCELLED";
 export type MatchMode = "RANDOM" | "INVITE";
-export type TurnPhase = "SPIN" | "QUESTION" | "END";
+export type TurnPhase = "SPIN" | "QUESTION" | "RESULT" | "END";
 export type SymbolKey = "BILIM" | "COGRAFYA" | "SPOR" | "MATEMATIK";
 export type ChoiceKey = "A" | "B" | "C" | "D" | "E";
 
@@ -43,6 +43,7 @@ export type MatchTurn = {
   challengeSymbol: SymbolKey | null;
   streak: number;
   activeQuestionId: string | null;
+  nextQuestionId?: string | null; // Q1 doğru olduğunda Q2'yi burada sakla (RESULT phase'inde)
   usedQuestionIds: string[];
   lastResult?: TurnLastResult | null;
   streakSymbol?: SymbolKey | null;

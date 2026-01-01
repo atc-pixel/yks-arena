@@ -20,6 +20,7 @@ export type MatchLastResult = {
   isCorrect: boolean;
   earnedSymbol: string | null;
   at: number;
+  questionIndex?: 0 | 1 | 2;
 };
 
 export function QuestionPanel({
@@ -32,6 +33,8 @@ export function QuestionPanel({
   choices,
   lastResult,
   onSubmit,
+  onContinue,
+  canContinue,
 }: {
   canAnswer: boolean;
   busy: boolean;
@@ -42,6 +45,8 @@ export function QuestionPanel({
   choices: Record<ChoiceKey, string> | null;
   lastResult: MatchLastResult | null;
   onSubmit: (answer: ChoiceKey) => Promise<void>;
+  onContinue?: () => Promise<void>;
+  canContinue?: boolean;
 }) {
   const { playClick, playCorrect, playWrong } = useSound();
 
@@ -70,11 +75,55 @@ export function QuestionPanel({
     if (!lastResult || !myUid || !activeQuestionId) return null;
     if (lastResult.uid !== myUid) return null;
     if (lastResult.questionId !== activeQuestionId) return null;
+    // Q1 doğru cevaplandıysa ve questionIndex 1 ise, buton gösterilecek
     return lastResult;
   }, [lastResult, myUid, activeQuestionId]);
 
+  // Q1 doğru cevaplandıysa ve sonraki soru hazırsa buton göster
+  const shouldShowContinueButton = useMemo(() => {
+    if (!lastResult || !myUid || !activeQuestionId) return false;
+    if (lastResult.uid !== myUid) return false;
+    if (lastResult.questionId !== activeQuestionId) return false;
+    // Q1 doğru cevaplandıysa (questionIndex 1 ve isCorrect true)
+    // questionIndex optional olduğu için kontrol et
+    return lastResult.isCorrect && (lastResult.questionIndex === 1 || (lastResult.questionIndex === undefined && !canContinue));
+  }, [lastResult, myUid, activeQuestionId, canContinue]);
+
   // When Firestore result arrives, reveal colors + sound + haptic
   useEffect(() => {
+    // RESULT phase'inde ve lastResult varsa, reveal set et (activeQuestionId değişmediği için useEffect tetiklenmeyebilir)
+    if (canContinue && lastResult && lastResult.uid === myUid && lastResult.questionId === activeQuestionId) {
+      const key = `${lastResult.questionId}:${lastResult.at}`;
+      if (playedResultRef.current !== key) {
+        // İlk kez gösteriliyor, ses ve haptic çal
+        if (lastResult.isCorrect) {
+          playCorrect();
+          try {
+            navigator.vibrate?.(200);
+          } catch {
+            // ignore
+          }
+        } else {
+          playWrong();
+          try {
+            navigator.vibrate?.([100, 50, 100]);
+          } catch {
+            // ignore
+          }
+        }
+        playedResultRef.current = key;
+      }
+      
+      setProcessingKey(null);
+      setReveal({
+        correctKey: lastResult.correctAnswer,
+        wrongKey: lastResult.isCorrect ? null : lastResult.answer,
+        isCorrect: lastResult.isCorrect,
+      });
+      submittingRef.current = false;
+      return;
+    }
+
     if (!resultForThisQuestion) return;
 
     const key = `${resultForThisQuestion.questionId}:${resultForThisQuestion.at}`;
@@ -112,7 +161,7 @@ export function QuestionPanel({
     }, 1500);
 
     return () => clearTimeout(t);
-  }, [resultForThisQuestion, playCorrect, playWrong]);
+  }, [resultForThisQuestion, playCorrect, playWrong, canContinue, lastResult, myUid, activeQuestionId]);
 
   const locked = !canAnswer || busy || !!processingKey || !!reveal || submittingRef.current;
 
@@ -178,7 +227,9 @@ export function QuestionPanel({
         )}
       </div>
 
-      {!canAnswer && (
+      {/* Sadece QUESTION phase'inde ve canAnswer false ise uyarı göster */}
+      {/* busy true ise (continue butonuna basıldı, geçiş yapılıyor) uyarı gösterme */}
+      {!canAnswer && !canContinue && !busy && (
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -189,6 +240,28 @@ export function QuestionPanel({
       )}
 
       {reveal && <QuestionResultDisplay correctKey={reveal.correctKey} />}
+
+      {/* Devam Butonu - Q1 doğru cevaplandığında göster */}
+      {/* RESULT phase'inde veya QUESTION phase'inde sonuç geldiyse butonu göster */}
+      {/* Q1 doğru cevaplandığında (reveal.isCorrect && shouldShowContinueButton) veya RESULT phase'inde (canContinue) butonu göster */}
+      {onContinue && ((reveal && reveal.isCorrect && shouldShowContinueButton) || canContinue) && (
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9, y: 10 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          transition={{ delay: 0.3, type: "spring", stiffness: 200 }}
+          className="mt-6"
+        >
+          <motion.button
+            whileHover={{ scale: 1.05, y: -2 }}
+            whileTap={{ scale: 0.95, y: 0 }}
+            onClick={onContinue}
+            disabled={busy || !canContinue}
+            className="w-full rounded-2xl border-4 border-black bg-gradient-to-r from-lime-400 via-cyan-400 to-pink-400 px-8 py-5 text-lg font-black uppercase tracking-wider text-black shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] transition-all hover:shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100 disabled:hover:shadow-[6px_6px_0px_0px_rgba(0,0,0,1)]"
+          >
+            {busy ? "Yükleniyor..." : "➜ Devam Et"}
+          </motion.button>
+        </motion.div>
+      )}
     </motion.section>
   );
 }

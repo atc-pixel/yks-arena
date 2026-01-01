@@ -26,7 +26,7 @@ export type PlayerState = {
   answeredCount: number;  // perfect run için
 };
 
-export type TurnPhase = "SPIN" | "QUESTION" | "END";
+export type TurnPhase = "SPIN" | "QUESTION" | "RESULT" | "END";
 
 // DEPRECATED: Bu type artık kullanılmıyor, @/lib/validation/schemas'dan MatchDoc import edin
 // Backward compatibility için tutuluyor, yeni kod için schemas.ts kullanın

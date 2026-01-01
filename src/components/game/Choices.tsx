@@ -54,7 +54,7 @@ export function Choices({
 
         const classes = cx(
           "w-full rounded-xl border-4 border-black px-5 py-4 text-left text-base font-black uppercase tracking-wide shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]",
-          "transition-all",
+          "transition-all duration-300 ease-out",
           "disabled:cursor-not-allowed",
           isProcessing
             ? "bg-yellow-400 text-black hover:bg-yellow-300 hover:shadow-[6px_6px_0px_0px_rgba(0,0,0,1)]"
@@ -70,6 +70,14 @@ export function Choices({
         return (
           <motion.button
             key={k}
+            initial={false}
+            animate={{
+              scale: isCorrect || isWrong ? [1, 1.02, 1] : 1,
+            }}
+            transition={{
+              duration: 0.3,
+              times: isCorrect || isWrong ? [0, 0.5, 1] : undefined,
+            }}
             whileHover={!locked ? { scale: 1.02, y: -2 } : {}}
             whileTap={{ scale: 0.95, y: 0 }}
             disabled={locked}

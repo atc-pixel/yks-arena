@@ -12,7 +12,7 @@ import { useRouter } from "next/navigation";
 import { auth } from "@/lib/firebase/client";
 import { useMatch } from "@/features/match/hooks/useMatch";
 import { useQuestion } from "@/features/match/hooks/useQuestion";
-import { spin, submitAnswer } from "@/features/match/services/match.api";
+import { spin, submitAnswer, continueToNextQuestion } from "@/features/match/services/match.api";
 import type { ChoiceKey, SymbolKey, PlayerState, TurnLastResult } from "@/lib/validation/schemas";
 
 export function useMatchPageLogic(matchId: string) {
@@ -108,8 +108,34 @@ export function useMatchPageLogic(matchId: string) {
     }
   };
 
+  const onContinue = async () => {
+    setError(null);
+
+    if (!isMyTurn) {
+      setError("Sıra sende değil.");
+      return;
+    }
+    if (phase !== "RESULT") {
+      setError("Şu an sonuç aşamasında değilsin.");
+      return;
+    }
+
+    setBusy("answer");
+    try {
+      await continueToNextQuestion(matchId);
+    } catch (e: unknown) {
+      console.error(e);
+      const errorMessage = e instanceof Error ? e.message : "Continue failed (functions).";
+      setError(errorMessage);
+      throw e;
+    } finally {
+      setBusy(null);
+    }
+  };
+
   const canSpin = Boolean(isMyTurn && phase === "SPIN" && busy === null);
   const canAnswer = Boolean(isMyTurn && phase === "QUESTION");
+  const canContinue = Boolean(isMyTurn && phase === "RESULT" && busy === null);
 
   return {
     // Match data
@@ -138,10 +164,12 @@ export function useMatchPageLogic(matchId: string) {
     // Actions
     onSpin,
     onSubmit,
+    onContinue,
 
     // Computed
     canSpin,
     canAnswer,
+    canContinue,
   };
 }
 
