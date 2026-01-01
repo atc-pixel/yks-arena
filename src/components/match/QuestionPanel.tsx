@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { motion } from "framer-motion";
 
 import { QuestionCard } from "@/components/game/QuestionCard";
 import { Choices } from "@/components/game/Choices";
@@ -136,22 +137,28 @@ export function QuestionPanel({
   };
 
   return (
-    <section className="rounded-3xl bg-neutral-900/60 p-6 ring-1 ring-neutral-800">
-      <div className="mb-3 flex items-center justify-between gap-3">
+    <motion.section
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="rounded-3xl border-4 border-black bg-linear-to-br from-indigo-400 via-purple-500 to-pink-500 p-6 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]"
+    >
+      <div className="mb-4 flex items-center justify-between gap-3">
         <QuestionCategoryBadge category={category} />
 
         {reveal ? (
           <QuestionResultBadge isCorrect={reveal.isCorrect} />
         ) : (
-          <span className="text-xs text-neutral-400">Seçimini yap</span>
+          <span className="rounded-lg border-2 border-black bg-white px-3 py-1.5 text-xs font-black uppercase tracking-wide text-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]">
+            Seçimini Yap
+          </span>
         )}
       </div>
 
-      <div className="rounded-2xl bg-neutral-950/40 p-4 ring-1 ring-neutral-800">
+      <div className="rounded-xl border-4 border-black bg-white p-4 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
         <QuestionCard text={questionText || "Soru bulunamadı."} />
       </div>
 
-      <div className="mt-4">
+      <div className="mt-5">
         {choices ? (
           <Choices
             choices={choices}
@@ -165,17 +172,23 @@ export function QuestionPanel({
             }}
           />
         ) : (
-          <div className="text-sm text-neutral-300">Choices alanı yok.</div>
+          <div className="rounded-lg border-2 border-black bg-white px-4 py-3 text-sm font-bold text-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]">
+            Choices alanı yok.
+          </div>
         )}
       </div>
 
       {!canAnswer && (
-        <div className="mt-4 text-sm text-neutral-400">
-          Şu an hamle yapamazsın. (Sıra rakipte veya enerji yok.)
-        </div>
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="mt-4 rounded-lg border-2 border-black bg-white/90 px-3 py-2 text-sm font-bold text-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]"
+        >
+          ⚠️ Şu an hamle yapamazsın. (Sıra rakipte veya enerji yok.)
+        </motion.div>
       )}
 
       {reveal && <QuestionResultDisplay correctKey={reveal.correctKey} />}
-    </section>
+    </motion.section>
   );
 }

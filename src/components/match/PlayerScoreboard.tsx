@@ -15,41 +15,65 @@ type Props = {
   isOpponent?: boolean;
 };
 
+import { motion } from "framer-motion";
+import { Trophy } from "lucide-react";
+
 export function PlayerScoreboard({ label, uid, state, isOpponent = false }: Props) {
   const symbols = (state?.symbols ?? []) as SymbolKey[];
 
   return (
-    <section className="rounded-2xl bg-neutral-900/60 p-5 ring-1 ring-neutral-800">
-      <div className="text-xs text-neutral-400">{label}</div>
-      <div className="mt-1 font-mono text-xs">{uid ?? "—"}</div>
+    <motion.section
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      className={[
+        "rounded-2xl border-4 border-black p-5 shadow-[6px_6px_0px_0px_rgba(0,0,0,1)]",
+        isOpponent
+          ? "bg-linear-to-br from-blue-400 to-cyan-500"
+          : "bg-linear-to-br from-pink-400 to-rose-500",
+      ].join(" ")}
+    >
+      <div className="mb-2 text-xs font-black uppercase tracking-wide text-black/70">{label}</div>
+      <div className="mb-4 rounded-lg border-2 border-black bg-white/90 px-2 py-1 font-mono text-xs font-bold text-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
+        {uid ?? "—"}
+      </div>
 
-      <div className="mt-4 grid grid-cols-1 gap-3">
-        <div className="rounded-2xl bg-neutral-950/60 p-4 ring-1 ring-neutral-800">
-          <div className="text-xs text-neutral-400">🏆 Match Trophies</div>
-          <div className="mt-1 text-2xl font-semibold">{state?.trophies ?? 0}</div>
+      <div className="mt-4 rounded-xl border-4 border-black bg-white p-4 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
+        <div className="mb-2 flex items-center gap-2">
+          <Trophy className="h-4 w-4 text-black" />
+          <div className="text-xs font-black uppercase tracking-wide text-black/70">Match Trophies</div>
+        </div>
+        <div className="text-4xl font-black tabular-nums text-black drop-shadow-[2px_2px_0px_rgba(255,255,255,0.5)]">
+          {state?.trophies ?? 0}
         </div>
       </div>
 
-      <div className="mt-3 rounded-2xl bg-neutral-950/60 p-4 ring-1 ring-neutral-800">
-        <div className="text-xs text-neutral-400">Symbols</div>
-        <div className="mt-2 flex flex-wrap gap-2">
+      <div className="mt-4 rounded-xl border-4 border-black bg-white p-4 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
+        <div className="mb-3 text-xs font-black uppercase tracking-wide text-black/70">Symbols</div>
+        <div className="flex flex-wrap gap-2">
           {symbols.length ? (
-            symbols.map((s) => (
-              <span
+            symbols.map((s, i) => (
+              <motion.span
                 key={s}
-                className={isOpponent
-                  ? "rounded-xl bg-neutral-800 px-3 py-1 text-xs font-semibold text-neutral-200 ring-1 ring-neutral-700"
-                  : "rounded-xl bg-emerald-500/20 px-3 py-1 text-xs font-semibold text-emerald-200 ring-1 ring-emerald-500/30"}
+                initial={{ opacity: 0, scale: 0 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: i * 0.1 }}
+                whileHover={{ scale: 1.1, rotate: 5 }}
+                className={[
+                  "rounded-lg border-2 border-black px-3 py-1.5 text-xs font-black uppercase shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]",
+                  isOpponent
+                    ? "bg-blue-400 text-black"
+                    : "bg-yellow-400 text-black",
+                ].join(" ")}
               >
                 {s}
-              </span>
+              </motion.span>
             ))
           ) : (
-            <span className="text-sm text-neutral-400">—</span>
+            <span className="text-sm font-bold text-black/60">—</span>
           )}
         </div>
       </div>
-    </section>
+    </motion.section>
   );
 }
 

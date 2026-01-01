@@ -21,8 +21,10 @@ type Props = {
 
 export function QuestionCategoryBadge({ category }: Props) {
   return (
-    <span className="rounded-full bg-neutral-950/50 px-3 py-1 text-xs text-neutral-200 ring-1 ring-neutral-800">
-      Kategori: <b>{category ? (SYMBOL_LABEL[category] ?? category) : "—"}</b>
+    <span className="rounded-lg border-2 border-black bg-purple-400 px-3 py-1.5 text-xs font-black uppercase tracking-wide text-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]">
+      Kategori: <span className="text-white drop-shadow-[1px_1px_0px_rgba(0,0,0,0.5)]">
+        {category ? (SYMBOL_LABEL[category] ?? category) : "—"}
+      </span>
     </span>
   );
 }

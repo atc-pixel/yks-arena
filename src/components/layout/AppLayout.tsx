@@ -47,68 +47,77 @@ export function AppLayout({ children, user, userLoading, userError }: Props) {
     navItems.find((n) => (n.href === "/" ? pathname === "/" : pathname?.startsWith(n.href)))?.href ?? "/";
 
   return (
-    <div className="min-h-dvh bg-linear-to-b from-neutral-950 via-neutral-950 to-neutral-900 text-neutral-100">
+    <div className="min-h-dvh bg-linear-to-b from-indigo-950 via-purple-950 to-pink-950 text-neutral-100">
       {/* Centered App Container */}
       <div className="mx-auto w-full max-w-lg px-4 pb-28 pt-4">
         {/* Top Bar */}
         <div className="sticky top-0 z-30 -mx-4 px-4 pt-2">
-          <div className="rounded-3xl bg-neutral-950/70 ring-1 ring-neutral-800 backdrop-blur">
-            <div className="flex items-center justify-between px-4 py-3">
-              {/* Left: Avatar + Level */}
-              <div className="flex items-center gap-3">
-                <div className="relative h-11 w-11 overflow-hidden rounded-2xl bg-neutral-900 ring-1 ring-neutral-800">
-                  {user?.photoURL ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={user.photoURL} alt="avatar" className="h-full w-full object-cover" />
-                  ) : (
-                    <div className="grid h-full w-full place-items-center text-sm font-bold text-neutral-200">
-                      {user ? initials(user.displayName) : "…"}
+          <motion.div
+            initial={{ y: -20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            className="rounded-3xl border-4 border-black bg-linear-to-r from-cyan-400 via-pink-400 to-yellow-400 p-1 shadow-[6px_6px_0px_0px_rgba(0,0,0,1)]"
+          >
+            <div className="rounded-2xl bg-white/95 p-3 backdrop-blur-sm">
+              <div className="flex items-center justify-between px-2 py-2">
+                {/* Left: Avatar + Level */}
+                <div className="flex items-center gap-3">
+                  <motion.div
+                    whileHover={{ scale: 1.1, rotate: 5 }}
+                    className="relative h-12 w-12 overflow-hidden rounded-xl border-4 border-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]"
+                  >
+                    {user?.photoURL ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={user.photoURL} alt="avatar" className="h-full w-full object-cover" />
+                    ) : (
+                      <div className="grid h-full w-full place-items-center bg-linear-to-br from-purple-400 to-pink-400 text-sm font-black text-black">
+                        {user ? initials(user.displayName) : "…"}
+                      </div>
+                    )}
+                  </motion.div>
+
+                  <div className="leading-tight">
+                    <div className="text-sm font-black text-black">
+                      {userLoading ? "Yükleniyor…" : user?.displayName ?? "Misafir"}
                     </div>
-                  )}
+                    <div className="mt-1 inline-flex items-center gap-2 text-xs">
+                      <span className="rounded-lg border-2 border-black bg-yellow-400 px-2 py-0.5 font-black text-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
+                        Lv {user?.level ?? 1}
+                      </span>
+                      <span className="font-bold text-black/70">{user?.league?.currentLeague ?? "BRONZE"}</span>
+                    </div>
+                  </div>
                 </div>
 
-                <div className="leading-tight">
-                  <div className="text-sm font-semibold">
-                    {userLoading ? "Yükleniyor…" : user?.displayName ?? "Misafir"}
-                  </div>
-                  <div className="mt-0.5 inline-flex items-center gap-2 text-xs text-neutral-300">
-                    <span className="rounded-full bg-neutral-900 px-2 py-0.5 ring-1 ring-neutral-800">
-                      Lv {user?.level ?? 1}
-                    </span>
-                    <span className="text-neutral-500">{user?.league?.currentLeague ?? "BRONZE"}</span>
-                  </div>
-                </div>
+                {/* Right: Energy Pill */}
+                <motion.div
+                  key={energy} // enerji değişince küçük animasyon
+                  initial={energyChanged ? { scale: 0.8, rotate: -10 } : false}
+                  animate={{ scale: 1, rotate: 0 }}
+                  transition={{ type: "spring", stiffness: 500, damping: 28 }}
+                  whileHover={{ scale: 1.1, rotate: 5 }}
+                  className={cn(
+                    "inline-flex items-center gap-2 rounded-xl border-4 border-black bg-linear-to-br from-lime-400 to-green-500 px-4 py-2 text-sm font-black text-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]"
+                  )}
+                >
+                  <Zap className="h-5 w-5" />
+                  <span className="tabular-nums">{energy}</span>
+                </motion.div>
               </div>
 
-              {/* Right: Energy Pill */}
-              <motion.div
-                key={energy} // enerji değişince küçük animasyon
-                initial={energyChanged ? { scale: 0.92 } : false}
-                animate={{ scale: 1 }}
-                transition={{ type: "spring", stiffness: 500, damping: 28 }}
-                className={cn(
-                  "inline-flex items-center gap-2 rounded-full px-3 py-2 text-sm font-semibold",
-                  "bg-neutral-900 ring-1 ring-neutral-800"
+              <AnimatePresence>
+                {userError && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: "auto", opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    className="mx-2 mb-2 rounded-lg border-2 border-black bg-red-400 px-3 py-2 text-xs font-bold text-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]"
+                  >
+                    {userError}
+                  </motion.div>
                 )}
-              >
-                <Zap className="h-4 w-4 text-emerald-400" />
-                <span className="tabular-nums">{energy}</span>
-              </motion.div>
+              </AnimatePresence>
             </div>
-
-            <AnimatePresence>
-              {userError && (
-                <motion.div
-                  initial={{ height: 0, opacity: 0 }}
-                  animate={{ height: "auto", opacity: 1 }}
-                  exit={{ height: 0, opacity: 0 }}
-                  className="px-4 pb-3 text-xs text-red-200"
-                >
-                  {userError}
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
+          </motion.div>
         </div>
 
         {/* Page Content */}
@@ -118,12 +127,17 @@ export function AppLayout({ children, user, userLoading, userError }: Props) {
       {/* Floating Dock */}
       <div className="fixed inset-x-0 bottom-4 z-40 flex justify-center px-4">
         <div className="w-full max-w-lg">
-          <div className="mx-auto w-full rounded-3xl bg-neutral-950/80 p-2 ring-1 ring-neutral-800 backdrop-blur">
+          <motion.div
+            initial={{ y: 100, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ delay: 0.2 }}
+            className="mx-auto w-full rounded-3xl border-4 border-black bg-white p-2 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]"
+          >
             <div className="relative grid grid-cols-3 gap-2">
               {/* active background */}
               <motion.div
                 layoutId="dock-active"
-                className="absolute inset-y-0 rounded-2xl bg-neutral-900 ring-1 ring-neutral-800"
+                className="absolute inset-y-0 rounded-xl border-4 border-black bg-linear-to-br from-cyan-400 to-pink-400 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]"
                 style={{
                   width: "calc((100% - 16px) / 3)", // 2*gap(8px)=16px
                   left:
@@ -140,23 +154,28 @@ export function AppLayout({ children, user, userLoading, userError }: Props) {
                 const Icon = item.icon;
                 const isActive = activeHref === item.href;
                 return (
-                  <motion.div key={item.href} whileTap={{ scale: 0.96 }} className="relative z-10">
+                  <motion.div
+                    key={item.href}
+                    whileHover={{ scale: 1.05, y: -2 }}
+                    whileTap={{ scale: 0.95 }}
+                    className="relative z-10"
+                  >
                     <Link
                       href={item.href}
                       className={cn(
-                        "flex h-12 items-center justify-center gap-2 rounded-2xl",
-                        "text-sm font-semibold",
-                        isActive ? "text-neutral-100" : "text-neutral-400"
+                        "flex h-12 items-center justify-center gap-2 rounded-xl",
+                        "text-sm font-black uppercase tracking-wide transition-all",
+                        isActive ? "text-black" : "text-black/60"
                       )}
                     >
-                      <Icon className={cn("h-5 w-5", isActive ? "text-neutral-100" : "text-neutral-400")} />
+                      <Icon className={cn("h-5 w-5", isActive ? "text-black" : "text-black/60")} />
                       <span className="hidden sm:inline">{item.label}</span>
                     </Link>
                   </motion.div>
                 );
               })}
             </div>
-          </div>
+          </motion.div>
         </div>
       </div>
     </div>

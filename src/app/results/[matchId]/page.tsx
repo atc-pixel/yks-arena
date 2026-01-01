@@ -1,5 +1,6 @@
 "use client";
 
+import { motion } from "framer-motion";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useResultsPageLogic } from "@/features/match/hooks/useResultsPageLogic";
@@ -33,9 +34,9 @@ export default function ResultsPage() {
 
   if (loading) {
     return (
-      <main className="min-h-dvh bg-neutral-950 text-neutral-100">
+      <main className="min-h-dvh bg-linear-to-b from-indigo-950 via-purple-950 to-pink-950 text-neutral-100">
         <div className="mx-auto max-w-3xl px-4 py-10">
-          <div className="rounded-2xl bg-neutral-900/60 p-5 ring-1 ring-neutral-800">
+          <div className="rounded-2xl border-4 border-black bg-white p-6 text-center text-lg font-black text-black shadow-[6px_6px_0px_0px_rgba(0,0,0,1)]">
             Yükleniyor...
           </div>
         </div>
@@ -45,17 +46,17 @@ export default function ResultsPage() {
 
   if (!match || !derived) {
     return (
-      <main className="min-h-dvh bg-neutral-950 text-neutral-100">
+      <main className="min-h-dvh bg-linear-to-b from-indigo-950 via-purple-950 to-pink-950 text-neutral-100">
         <div className="mx-auto max-w-3xl px-4 py-10">
-          <div className="rounded-2xl border border-red-500/30 bg-red-500/10 p-5 text-red-200">
+          <div className="rounded-2xl border-4 border-black bg-red-400 p-6 text-center text-lg font-black text-black shadow-[6px_6px_0px_0px_rgba(0,0,0,1)]">
             Sonuçlar alınamadı (match yok).
           </div>
-          <div className="mt-4">
+          <div className="mt-6">
             <Link
               href="/"
-              className="rounded-xl bg-neutral-100 px-4 py-2 text-sm font-semibold text-neutral-950"
+              className="inline-block rounded-xl border-4 border-black bg-lime-400 px-5 py-3 text-base font-black uppercase text-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-all hover:bg-lime-300 hover:shadow-[6px_6px_0px_0px_rgba(0,0,0,1)]"
             >
-              Lobby'ye dön
+              🏠 Lobby'ye dön
             </Link>
           </div>
         </div>
@@ -64,11 +65,11 @@ export default function ResultsPage() {
   }
 
   return (
-    <main className="min-h-dvh bg-linear-to-b from-neutral-950 via-neutral-950 to-neutral-900 text-neutral-100">
+    <main className="min-h-dvh bg-linear-to-b from-indigo-950 via-purple-950 to-pink-950 text-neutral-100">
       <div className="mx-auto w-full max-w-3xl px-4 py-10">
         <ResultsHeader title={title} subtitle={subtitle} />
 
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid gap-6 md:grid-cols-2">
           <PlayerResultCard
             label="Sen"
             uid={derived.meUid}
@@ -83,27 +84,31 @@ export default function ResultsPage() {
           />
         </div>
 
-        <div className="mt-6 flex flex-wrap items-center gap-3">
-          <Link
-            href="/"
-            className="rounded-xl bg-neutral-100 px-4 py-2 text-sm font-semibold text-neutral-950 hover:bg-white"
-          >
-            Lobby'ye dön
-          </Link>
+        <div className="mt-8 flex flex-wrap items-center gap-4">
+          <motion.div whileHover={{ scale: 1.05, y: -2 }} whileTap={{ scale: 0.95 }}>
+            <Link
+              href="/"
+              className="inline-block rounded-xl border-4 border-black bg-lime-400 px-6 py-4 text-base font-black uppercase tracking-wide text-black shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] transition-all hover:bg-lime-300 hover:shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]"
+            >
+              🏠 Lobby'ye Dön
+            </Link>
+          </motion.div>
 
-          <button
+          <motion.button
+            whileHover={{ scale: 1.05, y: -2 }}
+            whileTap={{ scale: 0.95 }}
             onClick={() => router.push(`/match/${matchId}`)}
-            className="rounded-xl bg-neutral-900 px-4 py-2 text-sm font-semibold text-neutral-200 ring-1 ring-neutral-800 hover:bg-neutral-800"
+            className="rounded-xl border-4 border-black bg-white px-6 py-4 text-base font-black uppercase tracking-wide text-black shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] transition-all hover:bg-cyan-400 hover:shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]"
           >
-            Maça geri dön (debug)
-          </button>
+            🔄 Maça Geri Dön (Debug)
+          </motion.button>
         </div>
 
-        <details className="mt-6 rounded-2xl bg-neutral-950/60 p-4 ring-1 ring-neutral-800">
-          <summary className="cursor-pointer text-sm text-neutral-300">
-            Debug detayları
+        <details className="mt-8 rounded-xl border-4 border-black bg-white p-4 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
+          <summary className="cursor-pointer text-sm font-black uppercase text-black">
+            Debug Detayları
           </summary>
-          <pre className="mt-3 overflow-auto text-xs text-neutral-300">
+          <pre className="mt-4 overflow-auto rounded-lg border-2 border-black bg-neutral-100 p-4 text-xs font-mono text-black">
             {JSON.stringify(match, null, 2)}
           </pre>
         </details>

@@ -50,63 +50,85 @@ export function ActiveMatchList({
   }, [matches, uid]);
 
   return (
-    <section className="mt-6">
-      <div className="mb-3 flex items-center justify-between">
-        <div className="text-sm font-semibold text-neutral-100">Aktif Maçların</div>
-        <div className="text-xs text-neutral-400">{matches.length}</div>
+    <motion.section
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.4, delay: 0.4 }}
+      className="mt-8"
+    >
+      <div className="mb-4 flex items-center justify-between">
+        <div className="text-lg font-black uppercase tracking-wide text-white drop-shadow-[2px_2px_0px_rgba(0,0,0,1)]">
+          Aktif Maçların
+        </div>
+        <div className="rounded-full border-2 border-black bg-white px-3 py-1 text-xs font-black text-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]">
+          {matches.length}
+        </div>
       </div>
 
       {loading && (
-        <div className="rounded-2xl bg-neutral-900/60 p-4 text-sm text-neutral-300 ring-1 ring-neutral-800">
+        <div className="rounded-2xl border-4 border-black bg-white p-5 text-center text-sm font-bold text-black shadow-[6px_6px_0px_0px_rgba(0,0,0,1)]">
           Maçlar yükleniyor...
         </div>
       )}
 
       {error && (
-        <div className="rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-200">
+        <div className="rounded-2xl border-4 border-black bg-red-400 p-5 text-sm font-bold text-black shadow-[6px_6px_0px_0px_rgba(0,0,0,1)]">
           {error}
         </div>
       )}
 
       {!loading && !error && rows.length === 0 && (
-        <div className="rounded-2xl bg-neutral-900/40 p-4 text-sm text-neutral-400 ring-1 ring-neutral-800">
-          Aktif maçın yok. Yeni maç başlat!
+        <div className="rounded-2xl border-4 border-black bg-linear-to-br from-neutral-200 to-neutral-300 p-5 text-center text-sm font-bold text-black shadow-[6px_6px_0px_0px_rgba(0,0,0,1)]">
+          Aktif maçın yok. Yeni maç başlat! 🚀
         </div>
       )}
 
-      <div className="mt-3 grid gap-3">
-        {rows.map(({ match, title, subtitle, isMyTurn }) => (
+      <div className="mt-4 grid gap-4">
+        {rows.map(({ match, title, subtitle, isMyTurn }, index) => (
           <motion.button
             key={match.id}
-            whileTap={{ scale: 0.98 }}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3, delay: 0.5 + index * 0.1 }}
+            whileHover={{ scale: 1.02, y: -2 }}
+            whileTap={{ scale: 0.98, y: 0 }}
             onClick={() => router.push(`/match/${match.id}`)}
             className={[
-              "w-full rounded-2xl p-4 text-left ring-1 transition",
-              "bg-neutral-900/60 ring-neutral-800 hover:bg-neutral-900/80",
-              isMyTurn ? "ring-emerald-500/50" : "",
+              "w-full rounded-2xl border-4 border-black p-5 text-left shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] transition-all",
+              isMyTurn
+                ? "bg-linear-to-br from-lime-400 to-green-500 hover:shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]"
+                : "bg-linear-to-br from-blue-400 to-cyan-500 hover:shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]",
             ].join(" ")}
           >
             <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <div
-                  className={[
-                    "grid h-11 w-11 place-items-center rounded-2xl ring-1",
+              <div className="flex items-center gap-4">
+                <motion.div
+                  animate={isMyTurn ? { rotate: [0, -10, 10, -10, 0] } : {}}
+                  transition={
                     isMyTurn
-                      ? "bg-emerald-500/15 text-emerald-200 ring-emerald-500/30"
-                      : "bg-neutral-950/60 text-neutral-300 ring-neutral-800",
+                      ? { repeat: Infinity, duration: 2, ease: "easeInOut" }
+                      : {}
+                  }
+                  className={[
+                    "grid h-14 w-14 place-items-center rounded-xl border-4 border-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]",
+                    isMyTurn
+                      ? "bg-yellow-400"
+                      : "bg-white",
                   ].join(" ")}
                 >
-                  <Swords className="h-5 w-5" />
-                </div>
+                  <Swords className={["h-6 w-6", isMyTurn ? "text-black" : "text-blue-600"].join(" ")} />
+                </motion.div>
 
                 <div>
-                  <div className="text-sm font-semibold text-neutral-100">{title}</div>
+                  <div className="text-base font-black uppercase tracking-wide text-black drop-shadow-[1px_1px_0px_rgba(255,255,255,0.8)]">
+                    {title}
+                  </div>
                   <div
                     className={[
-                      "mt-0.5 inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ring-1",
+                      "mt-2 inline-flex items-center rounded-lg border-2 border-black px-3 py-1 text-xs font-black uppercase shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]",
                       isMyTurn
-                        ? "bg-emerald-500/15 text-emerald-200 ring-emerald-500/30"
-                        : "bg-neutral-950/40 text-neutral-300 ring-neutral-800",
+                        ? "bg-yellow-400 text-black"
+                        : "bg-white text-blue-600",
                     ].join(" ")}
                   >
                     {subtitle}
@@ -114,11 +136,11 @@ export function ActiveMatchList({
                 </div>
               </div>
 
-              <ChevronRight className="h-5 w-5 text-neutral-400" />
+              <ChevronRight className="h-6 w-6 text-black" />
             </div>
           </motion.button>
         ))}
       </div>
-    </section>
+    </motion.section>
   );
 }

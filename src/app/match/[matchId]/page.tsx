@@ -1,5 +1,6 @@
 "use client";
 
+import { motion } from "framer-motion";
 import { useParams, useRouter } from "next/navigation";
 import { useMatchPageLogic } from "@/features/match/hooks/useMatchPageLogic";
 import { MatchHeader } from "@/components/match/MatchHeader";
@@ -45,9 +46,9 @@ export default function MatchPage() {
 
   if (loading) {
     return (
-      <main className="min-h-dvh bg-neutral-950 text-neutral-100">
+      <main className="min-h-dvh bg-linear-to-b from-indigo-950 via-purple-950 to-pink-950 text-neutral-100">
         <div className="mx-auto max-w-4xl px-4 py-10">
-          <div className="rounded-2xl bg-neutral-900/60 p-5 ring-1 ring-neutral-800">
+          <div className="rounded-2xl border-4 border-black bg-white p-6 text-center text-lg font-black text-black shadow-[6px_6px_0px_0px_rgba(0,0,0,1)]">
             Loading match...
           </div>
         </div>
@@ -57,9 +58,9 @@ export default function MatchPage() {
 
   if (!match) {
     return (
-      <main className="min-h-dvh bg-neutral-950 text-neutral-100">
+      <main className="min-h-dvh bg-linear-to-b from-indigo-950 via-purple-950 to-pink-950 text-neutral-100">
         <div className="mx-auto max-w-4xl px-4 py-10">
-          <div className="rounded-2xl border border-red-500/30 bg-red-500/10 p-5 text-red-200">
+          <div className="rounded-2xl border-4 border-black bg-red-400 p-6 text-center text-lg font-black text-black shadow-[6px_6px_0px_0px_rgba(0,0,0,1)]">
             Match not found.
           </div>
         </div>
@@ -68,7 +69,7 @@ export default function MatchPage() {
   }
 
   return (
-    <main className="min-h-dvh bg-linear-to-b from-neutral-950 via-neutral-950 to-neutral-900 text-neutral-100">
+    <main className="min-h-dvh bg-linear-to-b from-indigo-950 via-purple-950 to-pink-950 text-neutral-100">
       <div className="mx-auto w-full max-w-4xl px-4 py-10">
         {/* Header */}
         <MatchHeader
@@ -80,9 +81,13 @@ export default function MatchPage() {
 
         {/* Error banner */}
         {error && (
-          <div className="mb-4 rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-4 rounded-xl border-4 border-black bg-red-400 px-4 py-3 text-sm font-black uppercase text-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]"
+          >
             {error}
-          </div>
+          </motion.div>
         )}
 
         {/* Last result */}
@@ -121,9 +126,9 @@ export default function MatchPage() {
         </div>
 
         {/* Debug */}
-        <details className="mt-6 rounded-2xl bg-neutral-900/40 p-4 ring-1 ring-neutral-800">
-          <summary className="cursor-pointer text-sm text-neutral-300">Debug (match raw)</summary>
-          <pre className="mt-3 overflow-auto text-xs text-neutral-300">{JSON.stringify(match, null, 2)}</pre>
+        <details className="mt-6 rounded-xl border-4 border-black bg-white p-4 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
+          <summary className="cursor-pointer text-sm font-black uppercase text-black">Debug (match raw)</summary>
+          <pre className="mt-3 overflow-auto rounded-lg border-2 border-black bg-neutral-100 p-3 text-xs font-mono text-black">{JSON.stringify(match, null, 2)}</pre>
         </details>
       </div>
     </main>

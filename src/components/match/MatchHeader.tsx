@@ -21,47 +21,58 @@ type Props = {
   onGoHome: () => void;
 };
 
+import { motion } from "framer-motion";
+
 export function MatchHeader({ status, isMyTurn, phase, onGoHome }: Props) {
   return (
-    <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-      <button
+    <motion.div
+      initial={{ opacity: 0, y: -20 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="mb-6 flex flex-wrap items-center justify-between gap-3"
+    >
+      <motion.button
         onClick={onGoHome}
+        whileHover={{ scale: 1.05, y: -2 }}
+        whileTap={{ scale: 0.95 }}
         className={cx(
-          "inline-flex items-center gap-2 rounded-2xl bg-neutral-900/60 px-3 py-2 text-sm font-semibold text-neutral-200 ring-1 ring-neutral-800",
-          "transition-transform active:scale-95"
+          "inline-flex items-center gap-2 rounded-xl border-4 border-black bg-white px-4 py-2 text-sm font-black uppercase tracking-wide text-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]",
+          "transition-all hover:bg-cyan-400 hover:shadow-[6px_6px_0px_0px_rgba(0,0,0,1)]"
         )}
       >
         <HomeIcon className="h-4 w-4" />
         Ana Sayfa
-      </button>
+      </motion.button>
 
-      <div className="flex items-center gap-2">
-        <span
+      <div className="flex items-center gap-3">
+        <motion.span
+          whileHover={{ scale: 1.1 }}
           className={cx(
-            "rounded-full px-3 py-1 text-xs font-semibold ring-1",
+            "rounded-lg border-2 border-black px-3 py-1.5 text-xs font-black uppercase shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]",
             status === "ACTIVE"
-              ? "bg-emerald-500/15 text-emerald-200 ring-emerald-500/30"
-              : "bg-neutral-900 text-neutral-300 ring-neutral-800"
+              ? "bg-lime-400 text-black"
+              : "bg-neutral-300 text-black"
           )}
         >
           {status}
-        </span>
+        </motion.span>
 
-        <span
+        <motion.span
+          animate={isMyTurn ? { scale: [1, 1.1, 1] } : {}}
+          transition={isMyTurn ? { repeat: Infinity, duration: 1.5 } : {}}
           className={cx(
-            "rounded-full px-3 py-1 text-xs font-semibold ring-1",
+            "rounded-lg border-2 border-black px-3 py-1.5 text-xs font-black uppercase shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]",
             isMyTurn
-              ? "bg-emerald-500/20 text-emerald-200 ring-emerald-500/30"
-              : "bg-neutral-900 text-neutral-300 ring-neutral-800"
+              ? "bg-yellow-400 text-black"
+              : "bg-blue-400 text-black"
           )}
         >
-          {isMyTurn ? "Sıra sende" : "Rakipte"}
-        </span>
+          {isMyTurn ? "⚡ Sıra Sende" : "⏳ Rakipte"}
+        </motion.span>
 
-        <span className="rounded-full bg-neutral-900 px-3 py-1 text-xs text-neutral-300 ring-1 ring-neutral-800">
-          Phase: <span className="font-semibold">{phase}</span>
+        <span className="rounded-lg border-2 border-black bg-white px-3 py-1.5 text-xs font-black uppercase text-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]">
+          Phase: <span className="text-pink-500">{phase}</span>
         </span>
       </div>
-    </div>
+    </motion.div>
   );
 }

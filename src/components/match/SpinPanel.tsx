@@ -86,45 +86,52 @@ export function SpinPanel({
   };
 
   return (
-    <section className="rounded-3xl bg-neutral-900/60 p-6 ring-1 ring-neutral-800">
+    <motion.section
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="rounded-3xl border-4 border-black bg-linear-to-br from-orange-400 via-pink-400 to-purple-500 p-6 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]"
+    >
       <div className="flex items-center justify-between gap-3">
         <div>
-          <div className="text-xs text-neutral-400">Hamle</div>
-          <div className="mt-1 text-2xl font-semibold">Çarkı Çevir</div>
+          <div className="text-xs font-black uppercase tracking-wide text-black/70">Hamle</div>
+          <div className="mt-1 text-3xl font-black uppercase tracking-wide text-black drop-shadow-[2px_2px_0px_rgba(255,255,255,0.8)]">
+            Çarkı Çevir
+          </div>
         </div>
 
         <motion.div
           animate={controls}
           className={cx(
-            "grid h-16 w-16 place-items-center rounded-2xl bg-neutral-950/50 ring-1 ring-neutral-800",
-            spinning && "shadow-lg"
+            "grid h-20 w-20 place-items-center rounded-xl border-4 border-black bg-white shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]",
+            spinning && "shadow-[6px_6px_0px_0px_rgba(0,0,0,1)]"
           )}
         >
-          <Disc3 className="h-7 w-7 text-neutral-200" />
+          <Disc3 className="h-8 w-8 text-black" />
         </motion.div>
       </div>
 
       <motion.button
-        whileTap={{ scale: 0.98 }}
+        whileHover={canSpin && !busy && !spinning ? { scale: 1.05, y: -2 } : {}}
+        whileTap={{ scale: 0.95, y: 0 }}
         onClick={handleSpin}
         disabled={!canSpin || busy || spinning}
         className={cx(
-          "mt-5 flex w-full items-center justify-center gap-2 rounded-2xl border-b-4 px-5 py-4 text-base font-semibold shadow-lg",
-          "transition-transform duration-150 active:scale-95",
+          "mt-6 flex w-full items-center justify-center gap-2 rounded-xl border-4 border-black px-6 py-5 text-lg font-black uppercase tracking-wide shadow-[6px_6px_0px_0px_rgba(0,0,0,1)]",
+          "transition-all",
           canSpin
-            ? "bg-green-500 border-green-700 text-white hover:bg-green-400"
-            : "bg-neutral-800 border-neutral-900 text-neutral-400",
-          "disabled:opacity-70 disabled:cursor-not-allowed"
+            ? "bg-lime-400 text-black hover:bg-lime-300 hover:shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]"
+            : "bg-neutral-300 text-neutral-600",
+          "disabled:cursor-not-allowed"
         )}
       >
         {busy || spinning ? (
           <>
-            <Loader2 className="h-5 w-5 animate-spin" />
+            <Loader2 className="h-6 w-6 animate-spin" />
             Çevriliyor...
           </>
         ) : (
           <>
-            <Sparkles className="h-5 w-5" />
+            <Sparkles className="h-6 w-6" />
             Çarkı Çevir
           </>
         )}
@@ -132,21 +139,27 @@ export function SpinPanel({
 
       {revealSymbol && !spinning && (
         <motion.div
-          initial={{ scale: 0.5, opacity: 0 }}
-          animate={{ scale: [0.5, 1.2, 1], opacity: 1 }}
-          transition={{ duration: 0.45 }}
-          className="mt-4 rounded-2xl bg-neutral-950/50 p-4 text-center ring-1 ring-neutral-800"
+          initial={{ scale: 0, rotate: -180 }}
+          animate={{ scale: 1, rotate: 0 }}
+          transition={{ type: "spring", stiffness: 300 }}
+          className="mt-5 rounded-xl border-4 border-black bg-white p-5 text-center shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]"
         >
-          <div className="text-xs text-neutral-400">Kategori</div>
-          <div className="mt-1 text-lg font-semibold text-neutral-100">
+          <div className="text-xs font-black uppercase tracking-wide text-black/70">Kategori</div>
+          <div className="mt-2 text-2xl font-black uppercase text-black drop-shadow-[2px_2px_0px_rgba(0,0,0,0.2)]">
             {SYMBOL_LABEL[revealSymbol] ?? revealSymbol}
           </div>
         </motion.div>
       )}
 
       {!canSpin && (
-        <div className="mt-3 text-sm text-neutral-400">Rakibin hamlesi bekleniyor.</div>
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="mt-4 rounded-lg border-2 border-black bg-white/90 px-3 py-2 text-sm font-bold text-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]"
+        >
+          ⏳ Rakibin hamlesi bekleniyor.
+        </motion.div>
       )}
-    </section>
+    </motion.section>
   );
 }

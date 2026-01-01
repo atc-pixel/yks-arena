@@ -53,38 +53,39 @@ export function Choices({
         const isSelected = selectedKey === k && !isProcessing && !isCorrect && !isWrong;
 
         const classes = cx(
-          "w-full rounded-2xl border-b-4 px-4 py-3 text-left text-sm font-semibold shadow-lg",
-          "transition-transform duration-150 active:scale-95",
-          "disabled:cursor-not-allowed disabled:opacity-70",
+          "w-full rounded-xl border-4 border-black px-5 py-4 text-left text-base font-black uppercase tracking-wide shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]",
+          "transition-all",
+          "disabled:cursor-not-allowed",
           isProcessing
-            ? "bg-yellow-400 border-yellow-600 text-yellow-900"
+            ? "bg-yellow-400 text-black hover:bg-yellow-300 hover:shadow-[6px_6px_0px_0px_rgba(0,0,0,1)]"
             : isCorrect
-              ? "bg-green-500 border-green-700 text-white"
+              ? "bg-lime-400 text-black shadow-[6px_6px_0px_0px_rgba(0,0,0,1)]"
               : isWrong
-                ? "bg-red-500 border-red-700 text-white"
+                ? "bg-red-400 text-black shadow-[6px_6px_0px_0px_rgba(0,0,0,1)]"
                 : isSelected
-                  ? "bg-neutral-100 border-neutral-300 text-neutral-950"
-                  : "bg-neutral-900 border-neutral-950 text-neutral-100 hover:bg-neutral-800"
+                  ? "bg-cyan-400 text-black hover:bg-cyan-300 hover:shadow-[6px_6px_0px_0px_rgba(0,0,0,1)]"
+                  : "bg-white text-black hover:bg-pink-400 hover:shadow-[6px_6px_0px_0px_rgba(0,0,0,1)]"
         );
 
         return (
           <motion.button
             key={k}
-            whileTap={{ scale: 0.97 }}
+            whileHover={!locked ? { scale: 1.02, y: -2 } : {}}
+            whileTap={{ scale: 0.95, y: 0 }}
             disabled={locked}
             onClick={() => onPick(k)}
             className={classes}
           >
             <span
               className={cx(
-                "mr-2 inline-flex h-7 w-7 items-center justify-center rounded-lg text-sm font-semibold",
+                "mr-3 inline-flex h-8 w-8 items-center justify-center rounded-lg border-2 border-black text-sm font-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]",
                 isProcessing
-                  ? "bg-yellow-300 text-yellow-900"
+                  ? "bg-yellow-300 text-black"
                   : isCorrect
-                    ? "bg-green-600 text-white"
+                    ? "bg-green-500 text-black"
                     : isWrong
-                      ? "bg-red-600 text-white"
-                      : "bg-neutral-800 text-neutral-200"
+                      ? "bg-red-500 text-black"
+                      : "bg-black text-white"
               )}
             >
               {k}
