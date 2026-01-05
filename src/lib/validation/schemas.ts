@@ -124,7 +124,7 @@ export const MatchDocSchema = z.object({
   createdAt: FirestoreTimestampSchema,
   status: MatchStatusSchema,
   mode: MatchModeSchema,
-  players: z.array(z.string()).length(2), // Exactly 2 players
+  players: z.array(z.string()).min(1).max(2), // 1 player (WAITING) or 2 players (ACTIVE)
   turn: MatchTurnSchema,
   stateByUid: z.record(z.string(), PlayerStateSchema),
   winnerUid: z.string().optional(),

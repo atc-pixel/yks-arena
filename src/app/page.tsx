@@ -98,10 +98,10 @@ export default function HomePage() {
       />
 
       {/* INVITE MODAL */}
-      {createdInviteCode && createdMatchId && (
+      {createdInviteCode && (
         <InviteModal
           inviteCode={createdInviteCode}
-          matchId={createdMatchId}
+          matchId={createdMatchId || ""}
           copied={copied}
           busy={busy === "create"}
           onCopy={onCopy}

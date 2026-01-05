@@ -1,9 +1,10 @@
-import * as functions from "firebase-functions";
+import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { db } from "../utils/firestore";
 import { applyHourlyRefillTx } from "../users/energy";
 import { FieldValue } from "firebase-admin/firestore";
 import type { InviteDoc, MatchDoc } from "../shared/types";
 import type { UserDoc } from "../users/types";
+import { CancelInviteInputSchema, strictParse } from "../shared/validation";
 
 /**
  * Cancels an invite that is still WAITING.
@@ -11,30 +12,35 @@ import type { UserDoc } from "../users/types";
  * - Decrements host presence.activeMatchCount by 1 (slot refund).
  * - Marks invite as CANCELLED and match as CANCELLED (or CLOSED).
  */
-export const cancelInvite = functions
-  .region("europe-west1")
-  .https.onCall(async (data, context) => {
-    const uid = context.auth?.uid;
-    if (!uid) throw new functions.https.HttpsError("unauthenticated", "Login required.");
+export const cancelInvite = onCall(async (req) => {
+    const uid = req.auth?.uid;
+    if (!uid) throw new HttpsError("unauthenticated", "Login required.");
 
-    const inviteId = String(data?.inviteId ?? "");
-    if (!inviteId) throw new functions.https.HttpsError("invalid-argument", "inviteId is required.");
+    // Zod validation
+    let validatedInput;
+    try {
+      validatedInput = strictParse(CancelInviteInputSchema, req.data, "cancelInvite");
+    } catch (error) {
+      throw new HttpsError("invalid-argument", error instanceof Error ? error.message : "Invalid input");
+    }
+
+    const inviteId = validatedInput.inviteId;
 
     const inviteRef = db.collection("invites").doc(inviteId);
 
     await db.runTransaction(async (tx) => {
       const inviteSnap = await tx.get(inviteRef);
       if (!inviteSnap.exists) {
-        throw new functions.https.HttpsError("not-found", "Invite not found.");
+        throw new HttpsError("not-found", "Invite not found.");
       }
 
       const invite = inviteSnap.data() as InviteDoc | undefined;
-      if (!invite) throw new functions.https.HttpsError("internal", "Invite data is invalid");
+      if (!invite) throw new HttpsError("internal", "Invite data is invalid");
 
       // Must be host (createdBy is the host)
       const hostUid = invite.createdBy;
       if (!hostUid || hostUid !== uid) {
-        throw new functions.https.HttpsError("permission-denied", "Only host can cancel this invite.");
+        throw new HttpsError("permission-denied", "Only host can cancel this invite.");
       }
 
       const status = invite.status;
@@ -45,29 +51,27 @@ export const cancelInvite = functions
 
       // Only OPEN invites can be cancelled safely
       if (status !== "OPEN") {
-        throw new functions.https.HttpsError(
+        throw new HttpsError(
           "failed-precondition",
           `Invite cannot be cancelled in status=${status}.`
         );
       }
 
-      if (!matchId) {
-        throw new functions.https.HttpsError("failed-precondition", "Invite is missing matchId.");
-      }
-
-      const matchRef = db.collection("matches").doc(matchId);
-      const matchSnap = await tx.get(matchRef);
+      // matchId might not exist yet (match created when opponent joins)
+      // Only cancel match if it exists
+      const matchRef = matchId ? db.collection("matches").doc(matchId) : null;
+      const matchSnap = matchRef ? await tx.get(matchRef) : null;
 
       // If match doc missing, still refund slot and close invite
       const hostUserRef = db.collection("users").doc(uid);
       const hostUserSnap = await tx.get(hostUserRef);
       if (!hostUserSnap.exists) {
-        throw new functions.https.HttpsError("failed-precondition", "User profile missing.");
+        throw new HttpsError("failed-precondition", "User profile missing.");
       }
 
       // Optional: apply refill (doesn't matter much here, but keeps economy consistent)
       const hostUser = hostUserSnap.data() as UserDoc | undefined;
-      if (!hostUser) throw new functions.https.HttpsError("internal", "Host user data is invalid");
+      if (!hostUser) throw new HttpsError("internal", "Host user data is invalid");
       
       const nowMs = Date.now();
       applyHourlyRefillTx({
@@ -89,7 +93,7 @@ export const cancelInvite = functions
       });
 
       // Close match (only if exists and still in a cancellable state)
-      if (matchSnap.exists) {
+      if (matchRef && matchSnap && matchSnap.exists) {
         const match = matchSnap.data() as MatchDoc | undefined;
         if (!match) return; // Match data invalid, skip
         const matchStatus = match.status;
@@ -106,4 +110,4 @@ export const cancelInvite = functions
     });
 
     return { ok: true };
-  });
+});

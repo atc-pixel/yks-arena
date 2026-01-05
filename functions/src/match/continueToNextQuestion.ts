@@ -1,6 +1,7 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { db } from "../utils/firestore";
 import type { MatchDoc } from "../shared/types";
+import { ContinueToNextQuestionInputSchema, strictParse } from "../shared/validation";
 
 /**
  * Continue to Next Question
@@ -14,8 +15,15 @@ export const matchContinueToNextQuestion = onCall(async (req) => {
   const uid = req.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Auth required.");
 
-  const matchId = String(req.data?.matchId ?? "").trim();
-  if (!matchId) throw new HttpsError("invalid-argument", "matchId required");
+  // Zod validation
+  let validatedInput;
+  try {
+    validatedInput = strictParse(ContinueToNextQuestionInputSchema, req.data, "matchContinueToNextQuestion");
+  } catch (error) {
+    throw new HttpsError("invalid-argument", error instanceof Error ? error.message : "Invalid input");
+  }
+
+  const matchId = validatedInput.matchId;
 
   const matchRef = db.collection("matches").doc(matchId);
 

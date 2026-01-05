@@ -1,18 +1,23 @@
 /**
- * Match Page Logic Hook
+ * Match Page Logic Hook (React Query + Zustand Version)
  * 
  * Architecture Decision:
  * - Tüm match page logic'i bu hook'a taşındı
  * - Component "dumb" kalır, sadece UI render eder
- * - State management ve business logic burada
+ * - State management: React Query (server state) + mutations
+ * - Optimistic updates için React Query mutations kullanıyoruz
  */
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { auth } from "@/lib/firebase/client";
-import { useMatch } from "@/features/match/hooks/useMatch";
-import { useQuestion } from "@/features/match/hooks/useQuestion";
-import { spin, submitAnswer, continueToNextQuestion } from "@/features/match/services/match.api";
+import { useMatch } from "@/features/match/hooks/useMatch.rq";
+import { useQuestion } from "@/features/match/hooks/useQuestion.rq";
+import {
+  useSpinMutation,
+  useSubmitAnswerMutation,
+  useContinueToNextQuestionMutation,
+} from "@/features/match/hooks/useMatchMutations";
 import type { ChoiceKey, SymbolKey, PlayerState, TurnLastResult } from "@/lib/validation/schemas";
 
 export function useMatchPageLogic(matchId: string) {
@@ -33,7 +38,11 @@ export function useMatchPageLogic(matchId: string) {
 
   const { question, loading: questionLoading } = useQuestion(activeQuestionId);
 
-  const [busy, setBusy] = useState<"spin" | "answer" | null>(null);
+  // Mutations (React Query)
+  const spinMutation = useSpinMutation();
+  const submitAnswerMutation = useSubmitAnswerMutation();
+  const continueMutation = useContinueToNextQuestionMutation();
+
   const [error, setError] = useState<string | null>(null);
 
   // Type-safe player state extraction
@@ -49,7 +58,21 @@ export function useMatchPageLogic(matchId: string) {
     }
   }, [match?.status, matchId, router]);
 
-  // Actions
+  // Error handling from mutations
+  useEffect(() => {
+    if (spinMutation.error) setError(spinMutation.error.message);
+    if (submitAnswerMutation.error) {
+      const errorMsg = submitAnswerMutation.error.message;
+      if (errorMsg.includes("ENERGY_ZERO")) {
+        setError("Enerjin yok. Refill'i bekle ya da kutu aç!");
+      } else {
+        setError(errorMsg);
+      }
+    }
+    if (continueMutation.error) setError(continueMutation.error.message);
+  }, [spinMutation.error, submitAnswerMutation.error, continueMutation.error]);
+
+  // Actions (using mutations)
   const onSpin = async () => {
     setError(null);
 
@@ -62,17 +85,7 @@ export function useMatchPageLogic(matchId: string) {
       return;
     }
 
-    setBusy("spin");
-    try {
-      const res = await spin(matchId);
-      return res;
-    } catch (e: unknown) {
-      console.error(e);
-      const errorMessage = e instanceof Error ? e.message : "Spin failed (functions).";
-      setError(errorMessage);
-    } finally {
-      setBusy(null);
-    }
+    spinMutation.mutate(matchId);
   };
 
   const onSubmit = async (answer: ChoiceKey) => {
@@ -91,21 +104,7 @@ export function useMatchPageLogic(matchId: string) {
       return;
     }
 
-    setBusy("answer");
-    try {
-      await submitAnswer(matchId, answer);
-    } catch (e: unknown) {
-      console.error(e);
-      const errorMessage = e instanceof Error ? e.message : "Answer submit failed (functions).";
-      if (errorMessage.includes("ENERGY_ZERO")) {
-        setError("Enerjin yok. Refill'i bekle ya da kutu aç!");
-      } else {
-        setError(errorMessage);
-      }
-      throw e;
-    } finally {
-      setBusy(null);
-    }
+    submitAnswerMutation.mutate({ matchId, answer });
   };
 
   const onContinue = async () => {
@@ -120,22 +119,15 @@ export function useMatchPageLogic(matchId: string) {
       return;
     }
 
-    setBusy("answer");
-    try {
-      await continueToNextQuestion(matchId);
-    } catch (e: unknown) {
-      console.error(e);
-      const errorMessage = e instanceof Error ? e.message : "Continue failed (functions).";
-      setError(errorMessage);
-      throw e;
-    } finally {
-      setBusy(null);
-    }
+    continueMutation.mutate(matchId);
   };
 
-  const canSpin = Boolean(isMyTurn && phase === "SPIN" && busy === null);
-  const canAnswer = Boolean(isMyTurn && phase === "QUESTION");
-  const canContinue = Boolean(isMyTurn && phase === "RESULT" && busy === null);
+  // Busy states from mutations
+  const busy = spinMutation.isPending ? "spin" : submitAnswerMutation.isPending || continueMutation.isPending ? "answer" : null;
+
+  const canSpin = Boolean(isMyTurn && phase === "SPIN" && !spinMutation.isPending);
+  const canAnswer = Boolean(isMyTurn && phase === "QUESTION" && !submitAnswerMutation.isPending);
+  const canContinue = Boolean(isMyTurn && phase === "RESULT" && !continueMutation.isPending);
 
   return {
     // Match data

@@ -1,11 +1,13 @@
 "use client";
 
+import { useEffect } from "react";
 import { motion } from "framer-motion";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useResultsPageLogic } from "@/features/match/hooks/useResultsPageLogic";
 import { ResultsHeader } from "@/components/results/ResultsHeader";
 import { PlayerResultCard } from "@/components/results/PlayerResultCard";
+import { useMatchStore } from "@/stores/matchStore";
 
 /**
  * Results Page Component
@@ -19,6 +21,7 @@ export default function ResultsPage() {
   const params = useParams<{ matchId: string }>();
   const matchId = params.matchId;
   const router = useRouter();
+  const resetInvite = useMatchStore((state) => state.resetInvite);
 
   const {
     match,
@@ -31,6 +34,11 @@ export default function ResultsPage() {
     meTrophies,
     oppTrophies,
   } = useResultsPageLogic(matchId);
+
+  // Result sayfasına gelince invite state'ini temizle (modal açılmasın)
+  useEffect(() => {
+    resetInvite();
+  }, [resetInvite]);
 
   if (loading) {
     return (

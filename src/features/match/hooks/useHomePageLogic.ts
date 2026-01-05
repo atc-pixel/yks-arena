@@ -1,103 +1,80 @@
 /**
- * Home Page Logic Hook
+ * Home Page Logic Hook (React Query + Zustand Version)
  * 
  * Architecture Decision:
  * - Tüm page.tsx logic'i bu hook'a taşındı
  * - Component "dumb" kalır, sadece UI render eder
- * - State management ve business logic burada
+ * - State management: React Query (server state) + Zustand (client state)
+ * - Global user state Zustand'dan alınır (energy, canPlay, etc.)
  */
 
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
-import { doc, onSnapshot } from "firebase/firestore";
-import { db } from "@/lib/firebase/client";
-import { MatchDocSchema } from "@/lib/validation/schemas";
-import { safeParse } from "@/lib/validation/utils";
-import { createInvite, joinInvite, cancelInvite } from "@/features/match/services/match.api";
 import { useAnonAuth } from "@/features/auth/useAnonAuth";
-import { useUser } from "@/features/users/hooks/useUser";
-import { useActiveMatches } from "@/features/match/hooks/useActiveMatches";
+import { useUser } from "@/features/users/hooks/useUser.rq";
+import { useActiveMatches } from "@/features/match/hooks/useActiveMatches.rq";
+import { useUserStore } from "@/stores/userStore";
+import { useMatchStore } from "@/stores/matchStore";
+import {
+  useCreateInviteMutation,
+  useJoinInviteMutation,
+  useCancelInviteMutation,
+  useAutoRedirectOnJoin,
+} from "@/features/match/hooks/useInviteMutations";
 
 export function useHomePageLogic() {
-  const router = useRouter();
-
-  // Auth + realtime user
+  // Auth
   const { user: authUser, ready, error: authError } = useAnonAuth();
   const uid = authUser?.uid ?? null;
-  const { user, loading: userLoading, error: userError } = useUser(uid);
 
-  // UI state
+  // User data (React Query + Zustand sync)
+  const { user, loading: userLoading, error: userError } = useUser(uid);
+  const { energy, activeMatchCount, canPlay } = useUserStore();
+
+  // Invite state (Zustand)
+  const { createdInviteCode, createdMatchId, copied, setInviteState, setCopied, resetInvite } =
+    useMatchStore();
+
+  // UI state (local)
   const [joinCode, setJoinCode] = useState("");
-  const [busy, setBusy] = useState<"create" | "join" | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // Invite modal/state
-  const [createdInviteCode, setCreatedInviteCode] = useState<string | null>(null);
-  const [createdMatchId, setCreatedMatchId] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
+  // Mutations (React Query)
+  const createInviteMutation = useCreateInviteMutation();
+  const joinInviteMutation = useJoinInviteMutation();
+  const cancelInviteMutation = useCancelInviteMutation();
 
-  // Active matches
+  // Active matches (React Query)
   const { matches: activeMatches, loading: activeLoading, error: activeError } =
     useActiveMatches(uid);
+
+  // Auto-redirect when opponent joins (watch invite, not match)
+  useAutoRedirectOnJoin(createdInviteCode);
 
   // Error handling
   useEffect(() => {
     if (authError) setError(authError);
-  }, [authError]);
-
-  // Auto-redirect when opponent joins
-  useEffect(() => {
-    if (!createdMatchId) return;
-
-    const ref = doc(db, "matches", createdMatchId);
-    const unsub = onSnapshot(ref, (snap) => {
-      if (!snap.exists()) return;
-
-      const m = safeParse(MatchDocSchema, snap.data(), `page:invite-wait:${createdMatchId}`);
-      if (!m) return;
-
-      if (m.status === "ACTIVE") {
-        router.push(`/match/${createdMatchId}`);
+    if (userError) setError(userError?.message || "User fetch failed");
+    if (createInviteMutation.error) setError(createInviteMutation.error.message);
+    if (joinInviteMutation.error) setError(joinInviteMutation.error.message);
+    if (cancelInviteMutation.error) {
+      const errorMsg = cancelInviteMutation.error.message;
+      // CORS veya network hatalarında daha açıklayıcı mesaj
+      if (errorMsg.includes("CORS") || errorMsg.includes("fetch")) {
+        setError("İptal işlemi başarısız. Emulator'ı yeniden başlatmayı deneyin.");
+      } else {
+        setError(errorMsg);
       }
-    });
-
-    return () => unsub();
-  }, [createdMatchId, router]);
+    }
+  }, [authError, userError, createInviteMutation.error, joinInviteMutation.error, cancelInviteMutation.error]);
 
   // Computed values
   const canJoin = useMemo(() => joinCode.trim().length >= 4, [joinCode]);
-  const energy = user?.economy?.energy ?? 0;
-  const activeMatchCount = user?.presence?.activeMatchCount ?? 0;
-  const canPlay = energy > 0 && activeMatchCount < energy;
-
-  const playDisabledReason =
-    energy <= 0 ? "Enerji Yok" : activeMatchCount >= energy ? "Maç Kotası Dolu" : null;
-
-  const cannotStartNewMatch = energy <= activeMatchCount;
-  const cannotPlayAtAll = energy === 0;
-
-  const startMatchReason = cannotPlayAtAll
-    ? "Şu an enerjin yok. Maç başlatmak için refilli bekle ya da hemen kutu aç!"
-    : cannotStartNewMatch
-      ? "Şu an yeni maç başlatamazsın."
-      : null;
 
   // Actions
-  const onCreateInvite = async () => {
+  const onCreateInvite = () => {
     setError(null);
     setCopied(false);
-    setBusy("create");
-    try {
-      const res = await createInvite();
-      setCreatedInviteCode(res.code);
-      setCreatedMatchId(res.matchId);
-    } catch (e: unknown) {
-      console.error(e);
-      const errorMessage = e instanceof Error ? e.message : "Davet oluşturulamadı.";
-      setError(errorMessage);
-    } finally {
-      setBusy(null);
-    }
+    createInviteMutation.mutate(undefined);
   };
 
   const onCopy = async () => {
@@ -113,47 +90,44 @@ export function useHomePageLogic() {
 
   const onGoToMatch = () => {
     if (!createdMatchId) return;
-    router.push(`/match/${createdMatchId}`);
+    // Router navigation will be handled by mutation
   };
 
   const closeCreated = () => {
-    setCreatedInviteCode(null);
-    setCreatedMatchId(null);
-    setCopied(false);
+    resetInvite();
   };
 
-  const onCancelInvite = async () => {
+  const onCancelInvite = () => {
     if (!createdInviteCode) return;
-
     setError(null);
-    setBusy("create");
-    try {
-      await cancelInvite(createdInviteCode);
-      closeCreated();
-    } catch (e: unknown) {
-      console.error(e);
-      const errorMessage = e instanceof Error ? e.message : "Davet iptal edilemedi.";
-      setError(errorMessage);
-    } finally {
-      setBusy(null);
-    }
+    cancelInviteMutation.mutate(createdInviteCode);
   };
 
-  const onJoin = async () => {
+  const onJoin = () => {
     setError(null);
-    setBusy("join");
-    try {
-      const code = joinCode.trim().toUpperCase();
-      const res = await joinInvite(code);
-      router.push(`/match/${res.matchId}`);
-    } catch (e: unknown) {
-      console.error(e);
-      const errorMessage = e instanceof Error ? e.message : "Koda katılım başarısız.";
-      setError(errorMessage);
-    } finally {
-      setBusy(null);
-    }
+    const code = joinCode.trim().toUpperCase();
+    joinInviteMutation.mutate(code);
   };
+
+  // Computed values (from Zustand + user data)
+  const playDisabledReason =
+    energy <= 0 ? "Enerji Yok" : activeMatchCount >= energy ? "Maç Kotası Dolu" : null;
+  const cannotStartNewMatch = energy <= activeMatchCount;
+  const cannotPlayAtAll = energy === 0;
+  const startMatchReason = cannotPlayAtAll
+    ? "Şu an enerjin yok. Maç başlatmak için refilli bekle ya da hemen kutu aç!"
+    : cannotStartNewMatch
+      ? "Şu an yeni maç başlatamazsın."
+      : null;
+
+  // Busy states (from mutations)
+  const busy = createInviteMutation.isPending
+    ? "create"
+    : joinInviteMutation.isPending
+      ? "join"
+      : cancelInviteMutation.isPending
+        ? "create"
+        : null;
 
   return {
     // User data

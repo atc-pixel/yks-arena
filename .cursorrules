@@ -20,6 +20,7 @@ Your goal is to prevent technical debt, enforce type safety, and ensure modulari
    - Extract logic (timers, listeners, calculations) into Custom Hooks (e.g., `useGameSession.ts`).
    - If a component exceeds 200 lines, suggest splitting it.
    - Change or update only necessary codes, if you notice anything subject to change, ask for it. 
+   - Always stay minimal and clean, write with minimum amount of lines.
 
 2. **Type Safety & Zod:**
    - NEVER use `any`. 

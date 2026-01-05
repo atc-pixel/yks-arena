@@ -10,6 +10,7 @@ import { PlayerScoreboard } from "@/components/match/PlayerScoreboard";
 import { SpinPanel } from "@/components/match/SpinPanel";
 import { QuestionPanel, type MatchLastResult } from "@/components/match/QuestionPanel";
 import { useSound } from "@/hooks/useSound";
+import { useMatchStore } from "@/stores/matchStore";
 
 /**
  * Match Page Component
@@ -25,6 +26,12 @@ export default function MatchPage() {
   const router = useRouter();
   const { playCorrect } = useSound();
   const playedSymbolRef = useRef<string | null>(null);
+  const resetInvite = useMatchStore((state) => state.resetInvite);
+
+  // Match sayfasına gelince invite state'ini temizle (anasayfaya dönerken modal açılmasın)
+  useEffect(() => {
+    resetInvite();
+  }, [resetInvite]);
 
   const {
     match,

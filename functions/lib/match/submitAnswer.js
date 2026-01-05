@@ -5,6 +5,7 @@ const https_1 = require("firebase-functions/v2/https");
 const firestore_1 = require("../utils/firestore");
 const ensure_1 = require("../users/ensure");
 const energy_1 = require("../users/energy");
+const validation_1 = require("../shared/validation");
 const RANDOM_ID_MAX = 10_000_000;
 function randInt(maxExclusive) {
     return Math.floor(Math.random() * maxExclusive);
@@ -62,15 +63,18 @@ exports.matchSubmitAnswer = (0, https_1.onCall)(async (req) => {
     const uid = req.auth?.uid;
     if (!uid)
         throw new https_1.HttpsError("unauthenticated", "Auth required.");
+    // Zod validation
+    let validatedInput;
+    try {
+        validatedInput = (0, validation_1.strictParse)(validation_1.SubmitAnswerInputSchema, req.data, "matchSubmitAnswer");
+    }
+    catch (error) {
+        throw new https_1.HttpsError("invalid-argument", error instanceof Error ? error.message : "Invalid input");
+    }
     // Safety net (ragequit / ensureUserProfile missed)
     await (0, ensure_1.ensureUserDoc)(uid);
-    const matchId = String(req.data?.matchId ?? "").trim();
-    const answer = String(req.data?.answer ?? "").trim();
-    if (!matchId)
-        throw new https_1.HttpsError("invalid-argument", "matchId required");
-    if (!["A", "B", "C", "D", "E"].includes(answer)) {
-        throw new https_1.HttpsError("invalid-argument", "answer must be one of A/B/C/D/E");
-    }
+    const matchId = validatedInput.matchId;
+    const answer = validatedInput.answer;
     const matchRef = firestore_1.db.collection("matches").doc(matchId);
     const result = await firestore_1.db.runTransaction(async (tx) => {
         const matchSnap = await tx.get(matchRef);

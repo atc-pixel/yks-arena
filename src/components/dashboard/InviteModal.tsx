@@ -57,10 +57,11 @@ export function InviteModal({
               </p>
             </div>
             <motion.button
-              onClick={onClose}
-              whileHover={{ scale: 1.1, rotate: 90 }}
+              onClick={onCancelInvite}
+              disabled={busy}
+              whileHover={!busy ? { scale: 1.1, rotate: 90 } : {}}
               whileTap={{ scale: 0.9 }}
-              className="rounded-xl border-4 border-black bg-white px-3 py-2 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-all hover:bg-red-400"
+              className="rounded-xl border-4 border-black bg-white px-3 py-2 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-all hover:bg-red-400 disabled:opacity-60 disabled:cursor-not-allowed"
             >
               <X className="h-5 w-5 text-black" />
             </motion.button>

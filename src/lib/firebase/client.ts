@@ -17,7 +17,10 @@ const firebaseConfig = {
 export const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
-export const functions = getFunctions(app, env.NEXT_PUBLIC_FIREBASE_REGION);
+// Emulator'da tüm fonksiyonlar us-central1'de initialize ediliyor
+// Production'da env'den gelen region kullanılır
+const functionsRegion = env.NEXT_PUBLIC_USE_EMULATORS ? "us-central1" : env.NEXT_PUBLIC_FIREBASE_REGION;
+export const functions = getFunctions(app, functionsRegion);
 
 // ---- Emulator wiring (client-side only) ----
 declare global {

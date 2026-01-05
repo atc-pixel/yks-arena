@@ -1,21 +1,29 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
-import { db, FieldValue } from "../utils/firestore";
+import { db, FieldValue, Timestamp } from "../utils/firestore";
 import { ensureUserDoc } from "../users/ensure";
 import { applyHourlyRefillTx } from "../users/energy";
 import type { UserDoc } from "../users/types";
-import type { MatchDoc, InviteDoc } from "../shared/types";
+import type { InviteDoc } from "../shared/types";
+import { JoinInviteInputSchema, strictParse } from "../shared/validation";
 
 export const matchJoinInvite = onCall(async (req) => {
   const uid = req.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Auth required.");
 
+  // Zod validation
+  let validatedInput;
+  try {
+    validatedInput = strictParse(JoinInviteInputSchema, req.data, "matchJoinInvite");
+  } catch (error) {
+    throw new HttpsError("invalid-argument", error instanceof Error ? error.message : "Invalid input");
+  }
+
   await ensureUserDoc(uid);
 
-  const code = String(req.data?.code ?? "").toUpperCase().trim();
-  if (!code) throw new HttpsError("invalid-argument", "code required");
+  const code = validatedInput.code.toUpperCase().trim();
 
   const inviteRef = db.collection("invites").doc(code);
-  const matchRef = db.collection("matches").doc(); // placeholder, will be overwritten below
+  const matchRef = db.collection("matches").doc(); // Create new match when opponent joins
 
   await db.runTransaction(async (tx) => {
     const inviteSnap = await tx.get(inviteRef);
@@ -24,16 +32,7 @@ export const matchJoinInvite = onCall(async (req) => {
     const invite = inviteSnap.data() as InviteDoc | undefined;
     if (!invite || invite.status !== "OPEN") throw new HttpsError("failed-precondition", "Invite not open");
 
-    const realMatchRef = db.collection("matches").doc(invite.matchId);
-
-    const matchSnap = await tx.get(realMatchRef);
-    if (!matchSnap.exists) throw new HttpsError("not-found", "Match not found");
-
-    const match = matchSnap.data() as MatchDoc | undefined;
-    if (!match) throw new HttpsError("internal", "Match data is invalid");
-    if (match.status !== "WAITING") throw new HttpsError("failed-precondition", "Match not waiting");
-
-    const hostUid = match.players?.[0];
+    const hostUid = invite.createdBy;
     if (!hostUid) throw new HttpsError("internal", "Host missing");
     if (hostUid === uid) throw new HttpsError("failed-precondition", "Cannot join your own match");
 
@@ -77,32 +76,37 @@ export const matchJoinInvite = onCall(async (req) => {
     if (hostActive >= hostEnergy) throw new HttpsError("failed-precondition", "HOST_MATCH_LIMIT_REACHED");
     if (joinActive >= joinEnergy) throw new HttpsError("failed-precondition", "MATCH_LIMIT_REACHED");
 
-    // Transition match to ACTIVE
-    if (!match.players || match.players.length === 0) {
-      throw new HttpsError("internal", "Match players array missing or empty");
-    }
-    tx.update(realMatchRef, {
+    // Create match when opponent joins (2 players ready)
+    const now = Timestamp.now();
+    tx.set(matchRef, {
+      createdAt: now,
       status: "ACTIVE",
+      mode: "INVITE",
       players: [hostUid, uid],
 
       // host starts
-      "turn.currentUid": hostUid,
-      "turn.phase": "SPIN",
-      "turn.challengeSymbol": null,
-      "turn.streak": 0,
-      "turn.activeQuestionId": null,
-      "turn.usedQuestionIds": [],
+      turn: {
+        currentUid: hostUid,
+        phase: "SPIN",
+        challengeSymbol: null,
+        streak: 0,
+        activeQuestionId: null,
+        usedQuestionIds: [],
+        streakSymbol: null,
+        questionIndex: 0,
+      },
 
       stateByUid: {
-        [hostUid]:
-          match.stateByUid?.[hostUid] ??
-          { trophies: 0, symbols: [], wrongCount: 0, answeredCount: 0 },
+        [hostUid]: { trophies: 0, symbols: [], wrongCount: 0, answeredCount: 0 },
         [uid]: { trophies: 0, symbols: [], wrongCount: 0, answeredCount: 0 },
       },
     });
 
-    // Mark invite used
-    tx.update(inviteRef, { status: "USED" });
+    // Mark invite used and link to match
+    tx.update(inviteRef, {
+      status: "USED",
+      matchId: matchRef.id,
+    });
 
     // Concurrency:
     // - Host already consumed a slot when creating the invite.
@@ -112,9 +116,6 @@ export const matchJoinInvite = onCall(async (req) => {
     });
   });
 
-  // Return matchId from invite doc (non-transactional read is fine here)
-  const inviteSnap2 = await inviteRef.get();
-  const invite2 = inviteSnap2.data() as InviteDoc | undefined;
-  if (!invite2?.matchId) throw new HttpsError("internal", "Invite matchId missing");
-  return { matchId: invite2.matchId };
+  // Return matchId (created in transaction)
+  return { matchId: matchRef.id };
 });

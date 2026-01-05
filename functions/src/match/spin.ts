@@ -2,6 +2,7 @@ import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { db } from "../utils/firestore";
 import { ALL_SYMBOLS, type SymbolKey } from "../shared/constants";
 import type { MatchDoc, PlayerState } from "../shared/types";
+import { SpinInputSchema, strictParse } from "../shared/validation";
 
 const RANDOM_ID_MAX = 10_000_000;
 
@@ -68,8 +69,15 @@ export const matchSpin = onCall(async (req) => {
   const uid = req.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Auth required.");
 
-  const matchId = String(req.data?.matchId ?? "").trim();
-  if (!matchId) throw new HttpsError("invalid-argument", "matchId required");
+  // Zod validation
+  let validatedInput;
+  try {
+    validatedInput = strictParse(SpinInputSchema, req.data, "matchSpin");
+  } catch (error) {
+    throw new HttpsError("invalid-argument", error instanceof Error ? error.message : "Invalid input");
+  }
+
+  const matchId = validatedInput.matchId;
 
   const matchRef = db.collection("matches").doc(matchId);
 

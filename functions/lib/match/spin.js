@@ -4,6 +4,7 @@ exports.matchSpin = void 0;
 const https_1 = require("firebase-functions/v2/https");
 const firestore_1 = require("../utils/firestore");
 const constants_1 = require("../shared/constants");
+const validation_1 = require("../shared/validation");
 const RANDOM_ID_MAX = 10_000_000;
 function randInt(maxExclusive) {
     return Math.floor(Math.random() * maxExclusive);
@@ -51,9 +52,15 @@ exports.matchSpin = (0, https_1.onCall)(async (req) => {
     const uid = req.auth?.uid;
     if (!uid)
         throw new https_1.HttpsError("unauthenticated", "Auth required.");
-    const matchId = String(req.data?.matchId ?? "").trim();
-    if (!matchId)
-        throw new https_1.HttpsError("invalid-argument", "matchId required");
+    // Zod validation
+    let validatedInput;
+    try {
+        validatedInput = (0, validation_1.strictParse)(validation_1.SpinInputSchema, req.data, "matchSpin");
+    }
+    catch (error) {
+        throw new https_1.HttpsError("invalid-argument", error instanceof Error ? error.message : "Invalid input");
+    }
+    const matchId = validatedInput.matchId;
     const matchRef = firestore_1.db.collection("matches").doc(matchId);
     const result = await firestore_1.db.runTransaction(async (tx) => {
         const snap = await tx.get(matchRef);

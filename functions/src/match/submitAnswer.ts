@@ -4,6 +4,7 @@ import type { SymbolKey, ChoiceKey, MatchDoc, QuestionDoc } from "../shared/type
 import type { UserDoc } from "../users/types";
 import { ensureUserDoc } from "../users/ensure";
 import { applyHourlyRefillTx } from "../users/energy";
+import { SubmitAnswerInputSchema, strictParse } from "../shared/validation";
 
 const RANDOM_ID_MAX = 10_000_000;
 
@@ -81,16 +82,19 @@ export const matchSubmitAnswer = onCall(async (req) => {
   const uid = req.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Auth required.");
 
+  // Zod validation
+  let validatedInput;
+  try {
+    validatedInput = strictParse(SubmitAnswerInputSchema, req.data, "matchSubmitAnswer");
+  } catch (error) {
+    throw new HttpsError("invalid-argument", error instanceof Error ? error.message : "Invalid input");
+  }
+
   // Safety net (ragequit / ensureUserProfile missed)
   await ensureUserDoc(uid);
 
-  const matchId = String(req.data?.matchId ?? "").trim();
-  const answer = String(req.data?.answer ?? "").trim() as ChoiceKey;
-
-  if (!matchId) throw new HttpsError("invalid-argument", "matchId required");
-  if (!["A", "B", "C", "D", "E"].includes(answer)) {
-    throw new HttpsError("invalid-argument", "answer must be one of A/B/C/D/E");
-  }
+  const matchId = validatedInput.matchId;
+  const answer = validatedInput.answer;
 
   const matchRef = db.collection("matches").doc(matchId);
 

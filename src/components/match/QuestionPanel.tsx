@@ -1,28 +1,27 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 
 import { QuestionCard } from "@/components/game/QuestionCard";
 import { Choices } from "@/components/game/Choices";
-import { useSound } from "@/hooks/useSound";
 import { QuestionCategoryBadge } from "@/components/match/QuestionCategoryBadge";
 import { QuestionResultBadge } from "@/components/match/QuestionResultBadge";
 import { QuestionResultDisplay } from "@/components/match/QuestionResultDisplay";
+import { useQuestionPanelLogic } from "@/components/match/hooks/useQuestionPanelLogic";
+import type { MatchLastResult } from "@/components/match/hooks/useQuestionPanelLogic";
 import type { ChoiceKey, SymbolKey } from "@/lib/validation/schemas";
 
-export type MatchLastResult = {
-  uid: string;
-  questionId: string;
-  symbol: string;
-  answer: ChoiceKey;
-  correctAnswer: ChoiceKey;
-  isCorrect: boolean;
-  earnedSymbol: string | null;
-  at: number;
-  questionIndex?: 0 | 1 | 2;
-};
+// Re-export type for backward compatibility
+export type { MatchLastResult };
 
+/**
+ * QuestionPanel Component
+ * 
+ * Architecture Decision:
+ * - Component "dumb" kalır, sadece UI render eder
+ * - Tüm logic useQuestionPanelLogic hook'unda
+ * - Sound, haptic, reveal state logic hook'ta
+ */
 export function QuestionPanel({
   canAnswer,
   busy,
@@ -48,142 +47,22 @@ export function QuestionPanel({
   onContinue?: () => Promise<void>;
   canContinue?: boolean;
 }) {
-  const { playClick, playCorrect, playWrong } = useSound();
-
-  const [selectedKey, setSelectedKey] = useState<ChoiceKey | null>(null);
-  const [processingKey, setProcessingKey] = useState<ChoiceKey | null>(null);
-  const [reveal, setReveal] = useState<null | {
-    correctKey: ChoiceKey;
-    wrongKey: ChoiceKey | null;
-    isCorrect: boolean;
-  }>(null);
-
-  // prevent double submissions (even if parent busy lags)
-  const submittingRef = useRef(false);
-  const playedResultRef = useRef<string | null>(null);
-
-  // reset local UI when question changes
-  useEffect(() => {
-    setSelectedKey(null);
-    setProcessingKey(null);
-    setReveal(null);
-    submittingRef.current = false;
-    playedResultRef.current = null;
-  }, [activeQuestionId]);
-
-  const resultForThisQuestion = useMemo(() => {
-    if (!lastResult || !myUid || !activeQuestionId) return null;
-    if (lastResult.uid !== myUid) return null;
-    if (lastResult.questionId !== activeQuestionId) return null;
-    // Q1 doğru cevaplandıysa ve questionIndex 1 ise, buton gösterilecek
-    return lastResult;
-  }, [lastResult, myUid, activeQuestionId]);
-
-  // Q1 doğru cevaplandıysa ve sonraki soru hazırsa buton göster
-  const shouldShowContinueButton = useMemo(() => {
-    if (!lastResult || !myUid || !activeQuestionId) return false;
-    if (lastResult.uid !== myUid) return false;
-    if (lastResult.questionId !== activeQuestionId) return false;
-    // Q1 doğru cevaplandıysa (questionIndex 1 ve isCorrect true)
-    // questionIndex optional olduğu için kontrol et
-    return lastResult.isCorrect && (lastResult.questionIndex === 1 || (lastResult.questionIndex === undefined && !canContinue));
-  }, [lastResult, myUid, activeQuestionId, canContinue]);
-
-  // When Firestore result arrives, reveal colors + sound + haptic
-  useEffect(() => {
-    // RESULT phase'inde ve lastResult varsa, reveal set et (activeQuestionId değişmediği için useEffect tetiklenmeyebilir)
-    if (canContinue && lastResult && lastResult.uid === myUid && lastResult.questionId === activeQuestionId) {
-      const key = `${lastResult.questionId}:${lastResult.at}`;
-      if (playedResultRef.current !== key) {
-        // İlk kez gösteriliyor, ses ve haptic çal
-        if (lastResult.isCorrect) {
-          playCorrect();
-          try {
-            navigator.vibrate?.(200);
-          } catch {
-            // ignore
-          }
-        } else {
-          playWrong();
-          try {
-            navigator.vibrate?.([100, 50, 100]);
-          } catch {
-            // ignore
-          }
-        }
-        playedResultRef.current = key;
-      }
-      
-      setProcessingKey(null);
-      setReveal({
-        correctKey: lastResult.correctAnswer,
-        wrongKey: lastResult.isCorrect ? null : lastResult.answer,
-        isCorrect: lastResult.isCorrect,
-      });
-      submittingRef.current = false;
-      return;
-    }
-
-    if (!resultForThisQuestion) return;
-
-    const key = `${resultForThisQuestion.questionId}:${resultForThisQuestion.at}`;
-    if (playedResultRef.current === key) return;
-    playedResultRef.current = key;
-
-    setProcessingKey(null);
-    setReveal({
-      correctKey: resultForThisQuestion.correctAnswer,
-      wrongKey: resultForThisQuestion.isCorrect ? null : resultForThisQuestion.answer,
-      isCorrect: resultForThisQuestion.isCorrect,
-    });
-
-    // sounds + haptics
-    if (resultForThisQuestion.isCorrect) {
-      playCorrect();
-      try {
-        navigator.vibrate?.(200);
-      } catch {
-        // ignore
-      }
-    } else {
-      playWrong();
-      try {
-        navigator.vibrate?.([100, 50, 100]);
-      } catch {
-        // ignore
-      }
-    }
-
-    // keep buttons locked for a beat to let the animation land
-    const t = setTimeout(() => {
-      // Parent will move phase forward; we just release local submit lock
-      submittingRef.current = false;
-    }, 1500);
-
-    return () => clearTimeout(t);
-  }, [resultForThisQuestion, playCorrect, playWrong, canContinue, lastResult, myUid, activeQuestionId]);
-
-  const locked = !canAnswer || busy || !!processingKey || !!reveal || submittingRef.current;
-
-  const onPick = async (k: ChoiceKey) => {
-    if (locked) return;
-    if (!activeQuestionId) return;
-
-    playClick();
-    setSelectedKey(k);
-    setProcessingKey(k);
-    submittingRef.current = true;
-
-    try {
-      await onSubmit(k);
-      // Firestore lastResult will drive the reveal state.
-      // keep processingKey until result arrives or parent changes phase.
-    } catch {
-      // If submit fails, unlock and remove processing state
-      submittingRef.current = false;
-      setProcessingKey(null);
-    }
-  };
+  const {
+    selectedKey,
+    processingKey,
+    reveal,
+    locked,
+    onPick,
+    shouldShowContinueButton,
+  } = useQuestionPanelLogic({
+    canAnswer,
+    busy,
+    myUid,
+    activeQuestionId,
+    lastResult,
+    canContinue: canContinue ?? false,
+    onSubmit,
+  });
 
   return (
     <motion.section
@@ -242,8 +121,6 @@ export function QuestionPanel({
       {reveal && <QuestionResultDisplay correctKey={reveal.correctKey} />}
 
       {/* Devam Butonu - Q1 doğru cevaplandığında göster */}
-      {/* RESULT phase'inde veya QUESTION phase'inde sonuç geldiyse butonu göster */}
-      {/* Q1 doğru cevaplandığında (reveal.isCorrect && shouldShowContinueButton) veya RESULT phase'inde (canContinue) butonu göster */}
       {onContinue && ((reveal && reveal.isCorrect && shouldShowContinueButton) || canContinue) && (
         <motion.div
           initial={{ opacity: 0, scale: 0.9, y: 10 }}

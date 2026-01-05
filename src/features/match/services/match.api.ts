@@ -13,7 +13,7 @@ import {
 } from "@/lib/validation/schemas";
 import { strictParse } from "@/lib/validation/utils";
 
-export type CreateInviteResponse = { code: string; matchId: string };
+export type CreateInviteResponse = { code: string }; // matchId will be created when opponent joins
 export type JoinInviteResponse = { matchId: string };
 export type CancelInviteResponse = { ok: boolean };
 

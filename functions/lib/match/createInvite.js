@@ -7,6 +7,7 @@ const nanoid_1 = require("nanoid");
 const firestore_1 = require("../utils/firestore");
 const ensure_1 = require("../users/ensure");
 const energy_1 = require("../users/energy");
+const validation_1 = require("../shared/validation");
 async function allocateInviteCode(len = 6, tries = 5) {
     for (let i = 0; i < tries; i++) {
         const code = (0, nanoid_1.nanoid)(len).toUpperCase();
@@ -20,10 +21,16 @@ exports.matchCreateInvite = (0, https_1.onCall)(async (req) => {
     const uid = req.auth?.uid;
     if (!uid)
         throw new https_1.HttpsError("unauthenticated", "Auth required.");
+    // Zod validation - input boş object olmalı
+    try {
+        (0, validation_1.strictParse)(validation_1.CreateInviteInputSchema, req.data, "matchCreateInvite");
+    }
+    catch (error) {
+        throw new https_1.HttpsError("invalid-argument", error instanceof Error ? error.message : "Invalid input");
+    }
     await (0, ensure_1.ensureUserDoc)(uid);
     // Allocate code outside TX (fast). Uniqueness is still enforced by invite doc existence.
     const code = await allocateInviteCode(6);
-    const matchRef = firestore_1.db.collection("matches").doc();
     const inviteRef = firestore_1.db.collection("invites").doc(code);
     await firestore_1.db.runTransaction(async (tx) => {
         const userRef = firestore_1.db.collection("users").doc(uid);
@@ -46,40 +53,18 @@ exports.matchCreateInvite = (0, https_1.onCall)(async (req) => {
         if (inviteSnap.exists)
             throw new https_1.HttpsError("aborted", "Invite code already exists, retry.");
         const now = firestore_1.Timestamp.now();
-        tx.set(matchRef, {
-            createdAt: now,
-            status: "WAITING",
-            mode: "INVITE",
-            players: [uid],
-            turn: {
-                currentUid: uid,
-                phase: "SPIN",
-                challengeSymbol: null,
-                streak: 0,
-                activeQuestionId: null,
-                usedQuestionIds: [],
-                streakSymbol: null,
-                questionIndex: 0,
-            },
-            stateByUid: {
-                [uid]: {
-                    trophies: 0,
-                    symbols: [],
-                    wrongCount: 0,
-                    answeredCount: 0,
-                },
-            },
-        });
+        // Only create invite, match will be created when opponent joins
         tx.set(inviteRef, {
             createdAt: now,
             createdBy: uid,
-            matchId: matchRef.id,
             status: "OPEN",
+            // matchId will be set when opponent joins
         });
         // Concurrency: opening an invite consumes an active match slot.
         tx.update(userRef, {
             "presence.activeMatchCount": firestore_1.FieldValue.increment(1),
         });
     });
-    return { code, matchId: matchRef.id };
+    // Return only code, matchId will be created when opponent joins
+    return { code };
 });

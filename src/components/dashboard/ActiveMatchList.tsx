@@ -84,15 +84,25 @@ export function ActiveMatchList({
       )}
 
       <div className="mt-4 grid gap-4">
-        {rows.map(({ match, title, subtitle, isMyTurn }, index) => (
-          <motion.button
+        {rows.map(({ match, title, subtitle, isMyTurn }, index) => {
+          // FINISHED match'leri result sayfasına yönlendir
+          const handleClick = () => {
+            if (match.status === "FINISHED") {
+              router.push(`/results/${match.id}`);
+            } else {
+              router.push(`/match/${match.id}`);
+            }
+          };
+
+          return (
+            <motion.button
             key={match.id}
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.3, delay: 0.5 + index * 0.1 }}
             whileHover={{ scale: 1.02, y: -2 }}
             whileTap={{ scale: 0.98, y: 0 }}
-            onClick={() => router.push(`/match/${match.id}`)}
+            onClick={handleClick}
             className={[
               "w-full rounded-2xl border-4 border-black p-5 text-left shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] transition-all",
               isMyTurn
@@ -139,7 +149,8 @@ export function ActiveMatchList({
               <ChevronRight className="h-6 w-6 text-black" />
             </div>
           </motion.button>
-        ))}
+          );
+        })}
       </div>
     </motion.section>
   );

@@ -10,6 +10,8 @@
     "seed:questions": "cd functions && node scripts/seedQuestions.js"
   },
   "dependencies": {
+    "@tanstack/react-query": "^5.62.0",
+    "clsx": "^2.1.1",
     "csv-parse": "^6.1.0",
     "dotenv": "^17.2.3",
     "firebase-admin": "^13.6.0",
@@ -18,7 +20,9 @@
     "react-dom": "19.2.1",
     "framer-motion": "^12.23.12",
     "lucide-react": "^0.542.0",
-    "zod": "^3.25.0"
+    "tailwind-merge": "^2.6.0",
+    "zod": "^3.25.0",
+    "zustand": "^5.0.2"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
