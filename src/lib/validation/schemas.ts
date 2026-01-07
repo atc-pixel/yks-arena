@@ -55,7 +55,8 @@ export const MatchStatusSchema = z.enum(["WAITING", "ACTIVE", "FINISHED", "CANCE
 export const SymbolKeySchema = z.enum(["BILIM", "COGRAFYA", "SPOR", "MATEMATIK"]);
 export const TurnPhaseSchema = z.enum(["SPIN", "QUESTION", "RESULT", "END"]);
 export const MatchModeSchema = z.enum(["RANDOM", "INVITE"]);
-export const LeagueNameSchema = z.enum(["BRONZE", "SILVER", "GOLD", "PLATINUM", "DIAMOND"]);
+export const LeagueNameSchema = z.enum(["Teneke", "BRONZE", "SILVER", "GOLD", "PLATINUM", "DIAMOND"]);
+export const LeagueTierSchema = z.enum(["Teneke", "Bronze", "Silver", "Gold", "Platinum", "Diamond"]);
 
 // ============================================================================
 // QUESTION SCHEMA
@@ -137,7 +138,8 @@ export const MatchDocSchema = z.object({
 
 export const UserLeagueSchema = z.object({
   currentLeague: LeagueNameSchema,
-  weeklyScore: z.number(),
+  weeklyTrophies: z.number(),
+  currentBucketId: z.string().nullable().optional(),
 });
 
 export const UserStatsSchema = z.object({
@@ -207,4 +209,37 @@ export type SymbolKey = z.infer<typeof SymbolKeySchema>;
 export type TurnPhase = z.infer<typeof TurnPhaseSchema>;
 export type MatchMode = z.infer<typeof MatchModeSchema>;
 export type LeagueName = z.infer<typeof LeagueNameSchema>;
+export type LeagueTier = z.infer<typeof LeagueTierSchema>;
+
+// ============================================================================
+// LEAGUE SCHEMAS
+// ============================================================================
+
+export const LeaguePlayerEntrySchema = z.object({
+  uid: z.string(),
+  weeklyTrophies: z.number().min(0),
+  totalTrophies: z.number().min(0),
+  joinedAt: FirestoreTimestampSchema,
+});
+
+export const LeagueBucketSchema = z.object({
+  tier: LeagueTierSchema,
+  seasonId: z.string(),
+  bucketNumber: z.number().int().positive(),
+  status: z.enum(["active", "full", "archived"]),
+  players: z.array(LeaguePlayerEntrySchema).max(30),
+  createdAt: FirestoreTimestampSchema,
+  updatedAt: FirestoreTimestampSchema,
+});
+
+export const LeagueMetaSchema = z.object({
+  openBuckets: z.record(LeagueTierSchema, z.array(z.string())),
+  currentSeasonId: z.string(),
+  lastResetAt: FirestoreTimestampSchema.nullable(),
+  updatedAt: FirestoreTimestampSchema,
+});
+
+export type LeaguePlayerEntry = z.infer<typeof LeaguePlayerEntrySchema>;
+export type LeagueBucket = z.infer<typeof LeagueBucketSchema>;
+export type LeagueMeta = z.infer<typeof LeagueMetaSchema>;
 

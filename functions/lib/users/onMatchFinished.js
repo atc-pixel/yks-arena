@@ -33,6 +33,11 @@ exports.matchOnFinished = (0, firestore_1.onDocumentUpdated)("matches/{matchId}"
         return;
     const winnerRef = firestore_2.db.collection(types_1.USER_COLLECTION).doc(winnerUid);
     const loserRef = firestore_2.db.collection(types_1.USER_COLLECTION).doc(loserUid);
+    // Variables to store computed values from transaction
+    let winnerCurrentLeague = "Teneke";
+    let loserCurrentLeague = "Teneke";
+    let winnerNewWeeklyTrophies = 0;
+    let loserNewWeeklyTrophies = 0;
     await firestore_2.db.runTransaction(async (tx) => {
         const snap = await tx.get(matchRef);
         const match = snap.data();
@@ -82,6 +87,11 @@ exports.matchOnFinished = (0, firestore_1.onDocumentUpdated)("matches/{matchId}"
         const loserOldActive = Number(loserData?.presence?.activeMatchCount ?? 0);
         const winnerNewActive = decClamp(winnerOldActive);
         const loserNewActive = decClamp(loserOldActive);
+        // Store computed values for use after transaction (before updates)
+        winnerCurrentLeague = winnerData.league.currentLeague;
+        loserCurrentLeague = loserData.league.currentLeague;
+        winnerNewWeeklyTrophies = (winnerData.league.weeklyTrophies ?? 0) + winnerDelta;
+        loserNewWeeklyTrophies = (loserData.league.weeklyTrophies ?? 0) + loserDelta;
         tx.update(winnerRef, {
             trophies: winnerNewTrophies,
             level: winnerNewLevel,
@@ -103,10 +113,7 @@ exports.matchOnFinished = (0, firestore_1.onDocumentUpdated)("matches/{matchId}"
     });
     // After transaction: Check for Teneke Escape
     // If user is in Teneke and has weeklyTrophies > 0, assign to Bronze
-    const [winnerSnapAfter, loserSnapAfter] = await Promise.all([
-        winnerRef.get(),
-        loserRef.get(),
-    ]);
+    // Use computed values from transaction to avoid eventual consistency issues
     // Get current season ID from league meta
     const metaRef = firestore_2.db.collection(league_1.SYSTEM_COLLECTION).doc(league_1.LEAGUE_META_DOC_ID);
     const metaSnap = await metaRef.get();
@@ -119,41 +126,51 @@ exports.matchOnFinished = (0, firestore_1.onDocumentUpdated)("matches/{matchId}"
         }
     }
     // Check winner for Teneke Escape
-    if (winnerSnapAfter.exists) {
-        const winnerData = winnerSnapAfter.data();
-        if (winnerData &&
-            winnerData.league.currentLeague === "Teneke" &&
-            winnerData.league.weeklyTrophies > 0) {
-            try {
-                await (0, assignToLeague_1.assignToLeague)({
-                    uid: winnerUid,
-                    seasonId,
-                    // targetTier not provided, will auto-determine (Teneke Escape -> Bronze)
-                });
-            }
-            catch (error) {
-                // Log error but don't fail the match processing
-                console.error(`Failed to assign winner ${winnerUid} to league:`, error);
+    // Use computed values from transaction to avoid eventual consistency issues
+    if (winnerCurrentLeague === "Teneke" &&
+        winnerNewWeeklyTrophies > 0) {
+        try {
+            console.log(`[Teneke Escape] Assigning winner ${winnerUid} to Bronze (weeklyTrophies: ${winnerNewWeeklyTrophies})`);
+            const result = await (0, assignToLeague_1.assignToLeague)({
+                uid: winnerUid,
+                seasonId,
+                // targetTier not provided, will auto-determine (Teneke Escape -> Bronze)
+            });
+            console.log(`[Teneke Escape] Winner ${winnerUid} assigned to ${result.tier} (bucketId: ${result.bucketId})`);
+        }
+        catch (error) {
+            // Log error but don't fail the match processing
+            console.error(`[Teneke Escape] Failed to assign winner ${winnerUid} to league:`, error);
+            if (error instanceof Error) {
+                console.error(`[Teneke Escape] Error stack:`, error.stack);
             }
         }
     }
+    else {
+        console.log(`[Teneke Escape] Winner ${winnerUid} skip: currentLeague=${winnerCurrentLeague}, weeklyTrophies=${winnerNewWeeklyTrophies}`);
+    }
     // Check loser for Teneke Escape
-    if (loserSnapAfter.exists) {
-        const loserData = loserSnapAfter.data();
-        if (loserData &&
-            loserData.league.currentLeague === "Teneke" &&
-            loserData.league.weeklyTrophies > 0) {
-            try {
-                await (0, assignToLeague_1.assignToLeague)({
-                    uid: loserUid,
-                    seasonId,
-                    // targetTier not provided, will auto-determine (Teneke Escape -> Bronze)
-                });
-            }
-            catch (error) {
-                // Log error but don't fail the match processing
-                console.error(`Failed to assign loser ${loserUid} to league:`, error);
+    // Use computed values from transaction to avoid eventual consistency issues
+    if (loserCurrentLeague === "Teneke" &&
+        loserNewWeeklyTrophies > 0) {
+        try {
+            console.log(`[Teneke Escape] Assigning loser ${loserUid} to Bronze (weeklyTrophies: ${loserNewWeeklyTrophies})`);
+            const result = await (0, assignToLeague_1.assignToLeague)({
+                uid: loserUid,
+                seasonId,
+                // targetTier not provided, will auto-determine (Teneke Escape -> Bronze)
+            });
+            console.log(`[Teneke Escape] Loser ${loserUid} assigned to ${result.tier} (bucketId: ${result.bucketId})`);
+        }
+        catch (error) {
+            // Log error but don't fail the match processing
+            console.error(`[Teneke Escape] Failed to assign loser ${loserUid} to league:`, error);
+            if (error instanceof Error) {
+                console.error(`[Teneke Escape] Error stack:`, error.stack);
             }
         }
+    }
+    else {
+        console.log(`[Teneke Escape] Loser ${loserUid} skip: currentLeague=${loserCurrentLeague}, weeklyTrophies=${loserNewWeeklyTrophies}`);
     }
 });

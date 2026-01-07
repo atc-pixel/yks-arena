@@ -32,17 +32,29 @@ export function useFirestoreQuery<T>(
     setLoading(true);
     setError(null);
 
+    let isMounted = true;
+
     // Subscribe to Firestore real-time updates
     const unsubscribe = subscribeFn((newData) => {
-      // Update local state
-      setData(newData);
-      setLoading(false);
+      if (!isMounted) return;
+      
+      try {
+        // Update local state
+        setData(newData);
+        setLoading(false);
 
-      // Update React Query cache
-      queryClient.setQueryData(queryKey, newData);
+        // Update React Query cache
+        queryClient.setQueryData(queryKey, newData);
+      } catch (err) {
+        if (!isMounted) return;
+        console.error("useFirestoreQuery error:", err);
+        setError(err instanceof Error ? err : new Error(String(err)));
+        setLoading(false);
+      }
     });
 
     return () => {
+      isMounted = false;
       unsubscribe();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps

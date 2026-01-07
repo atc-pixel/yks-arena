@@ -17,7 +17,6 @@ exports.assignToLeague = assignToLeague;
 const firestore_1 = require("../utils/firestore");
 const league_1 = require("../shared/types/league");
 const types_1 = require("../users/types");
-const assignToLeague_helpers_1 = require("./assignToLeague.helpers");
 // ============================================================================
 // MAIN FUNCTION
 // ============================================================================
@@ -93,6 +92,9 @@ const assignToLeague_helpers_1 = require("./assignToLeague.helpers");
 async function assignToLeague(params) {
     const { uid, seasonId, targetTier: providedTargetTier } = params;
     return await firestore_1.db.runTransaction(async (tx) => {
+        // ============================================================================
+        // PHASE 1: ALL READS FIRST (Firestore transaction requirement)
+        // ============================================================================
         // 1. Read user document
         const userRef = firestore_1.db.collection(types_1.USER_COLLECTION).doc(uid);
         const userSnap = await tx.get(userRef);
@@ -100,33 +102,29 @@ async function assignToLeague(params) {
             throw new Error(`User ${uid} not found`);
         }
         const userData = userSnap.data();
-        // Note: UserDoc validation should happen at API boundary, not here
-        // But we can add runtime checks if needed
-        // Refactor: Optimized for O(1) lookup and idempotency
-        // Get currentBucketId from user document to avoid O(N) scan
         const currentBucketId = userData.league.currentBucketId || null;
-        // 2. Remove user from old bucket BEFORE any new assignment
-        // This fixes the Zombie Player Bug: users moving to Teneke must be removed from old bucket
+        // 2. Read old bucket (if exists) - for removal
+        let oldBucketSnap = null;
+        let oldBucketData = null;
         if (currentBucketId) {
-            await (0, assignToLeague_helpers_1.removeUserFromOldBucket)(tx, uid, currentBucketId);
+            const oldBucketRef = firestore_1.db.collection(league_1.LEAGUES_COLLECTION).doc(currentBucketId);
+            oldBucketSnap = await tx.get(oldBucketRef);
+            if (oldBucketSnap.exists) {
+                oldBucketData = oldBucketSnap.data();
+            }
         }
         // 3. Determine target tier
         let targetTier;
         if (providedTargetTier) {
-            // Explicit tier provided (e.g., from weeklyReset promotion/demotion)
             targetTier = league_1.LeagueTierSchema.parse(providedTargetTier);
         }
         else {
-            // Auto-determine: Teneke Escape logic
             const currentLeague = userData.league.currentLeague;
             const weeklyTrophies = userData.league.weeklyTrophies;
             if (currentLeague === "Teneke" && weeklyTrophies > 0) {
-                // Teneke Escape: Move to Bronze
                 targetTier = "Bronze";
             }
             else {
-                // Keep current league (convert LeagueName to LeagueTier)
-                // Note: LeagueName is "Teneke" | "BRONZE" | "SILVER" | ..., LeagueTier is "Teneke" | "Bronze" | "Silver" | ...
                 const tierMap = {
                     Teneke: "Teneke",
                     BRONZE: "Bronze",
@@ -138,70 +136,171 @@ async function assignToLeague(params) {
                 targetTier = tierMap[currentLeague] || "Teneke";
             }
         }
-        // 4. If Teneke, no bucket assignment needed
-        // Zombie Bug Fix: User already removed from old bucket above, now just update user doc
+        // 4. Read league meta (for findOpenBucket)
+        const metaRef = firestore_1.db.collection(league_1.SYSTEM_COLLECTION).doc(league_1.LEAGUE_META_DOC_ID);
+        const metaSnap = await tx.get(metaRef);
+        let metaData = null;
+        if (metaSnap.exists) {
+            metaData = metaSnap.data();
+        }
+        // 5. Find or determine bucket ID (read phase)
+        let bucketId = null;
+        let bucketSnap = null;
+        let bucketData = null;
+        if (targetTier !== "Teneke") {
+            // Try to find open bucket from meta
+            if (metaData) {
+                const openBuckets = metaData.openBuckets?.[targetTier] || [];
+                for (const candidateBucketId of openBuckets) {
+                    const candidateRef = firestore_1.db.collection(league_1.LEAGUES_COLLECTION).doc(candidateBucketId);
+                    const candidateSnap = await tx.get(candidateRef);
+                    if (candidateSnap.exists) {
+                        const candidateData = candidateSnap.data();
+                        const candidateBucket = league_1.LeagueBucketSchema.safeParse(candidateData);
+                        if (candidateBucket.success &&
+                            candidateBucket.data.seasonId === seasonId &&
+                            candidateBucket.data.status === "active" &&
+                            candidateBucket.data.players.length < 30) {
+                            bucketId = candidateBucketId;
+                            bucketSnap = candidateSnap;
+                            bucketData = candidateData;
+                            break;
+                        }
+                    }
+                }
+            }
+            // If no open bucket found, we'll create one (but read first to determine bucket number)
+            if (!bucketId) {
+                // Determine next bucket number from meta
+                let bucketNumber = 1;
+                if (metaData) {
+                    const existingBuckets = metaData.openBuckets?.[targetTier] || [];
+                    let maxBucketNumber = 0;
+                    for (const existingBucketId of existingBuckets) {
+                        const parsed = existingBucketId.split("_");
+                        if (parsed.length === 3 && parsed[1] === seasonId) {
+                            const num = parseInt(parsed[2], 10);
+                            if (!isNaN(num) && num > maxBucketNumber) {
+                                maxBucketNumber = num;
+                            }
+                        }
+                    }
+                    bucketNumber = maxBucketNumber + 1;
+                }
+                // Generate bucket ID (we'll create it in write phase)
+                // Format: {tier}_{seasonId}_{bucketNumber} (e.g., bronze_S1_1)
+                bucketId = `${targetTier.toLowerCase()}_${seasonId}_${bucketNumber}`;
+            }
+            else {
+                // Read bucket data (already read above)
+                bucketData = bucketSnap.data();
+            }
+        }
+        // ============================================================================
+        // PHASE 2: ALL WRITES AFTER ALL READS
+        // ============================================================================
+        // 6. Remove user from old bucket (if exists)
+        if (oldBucketSnap && oldBucketSnap.exists && oldBucketData) {
+            const oldBucket = league_1.LeagueBucketSchema.safeParse(oldBucketData);
+            if (oldBucket.success) {
+                const playerIndex = oldBucket.data.players.findIndex((p) => p.uid === uid);
+                if (playerIndex !== -1) {
+                    const updatedPlayers = oldBucket.data.players.filter((p) => p.uid !== uid);
+                    const oldBucketRef = firestore_1.db.collection(league_1.LEAGUES_COLLECTION).doc(currentBucketId);
+                    const oldBucketUpdates = {
+                        players: updatedPlayers,
+                        updatedAt: firestore_1.FieldValue.serverTimestamp(),
+                    };
+                    if (oldBucket.data.status === "full" && updatedPlayers.length < 30) {
+                        oldBucketUpdates.status = "active";
+                    }
+                    tx.update(oldBucketRef, oldBucketUpdates);
+                }
+            }
+        }
+        // 7. If Teneke, no bucket assignment needed
         if (targetTier === "Teneke") {
-            // Update user league and clear currentBucketId
             tx.update(userRef, {
                 "league.currentLeague": "Teneke",
                 "league.currentBucketId": firestore_1.FieldValue.delete(),
             });
-            // Return early (no bucket assignment)
             return { bucketId: "", tier: "Teneke" };
         }
-        // 4. Find or create bucket
-        let bucketId = await (0, assignToLeague_helpers_1.findOpenBucket)(tx, targetTier, seasonId);
-        if (!bucketId) {
-            // No open bucket found, create new one
-            bucketId = await (0, assignToLeague_helpers_1.createNewBucket)(tx, targetTier, seasonId);
-            // Update meta to include new bucket
-            await (0, assignToLeague_helpers_1.updateLeagueMeta)(tx, targetTier, bucketId, seasonId);
+        // 8. Create new bucket if needed
+        if (!bucketSnap || !bucketSnap.exists) {
+            const bucketRef = firestore_1.db.collection(league_1.LEAGUES_COLLECTION).doc(bucketId);
+            const now = firestore_1.Timestamp.now();
+            const newBucket = {
+                tier: targetTier,
+                seasonId,
+                bucketNumber: parseInt(bucketId.split("_")[2] || "1", 10),
+                status: "active",
+                players: [],
+                createdAt: now,
+                updatedAt: now,
+            };
+            tx.create(bucketRef, newBucket);
+            bucketData = newBucket;
         }
-        // 5. Read target bucket
-        const bucketRef = firestore_1.db.collection(league_1.LEAGUES_COLLECTION).doc(bucketId);
-        const bucketSnap = await tx.get(bucketRef);
-        if (!bucketSnap.exists) {
-            throw new Error(`Bucket ${bucketId} not found after creation`);
-        }
-        const bucketData = bucketSnap.data();
+        // 9. Validate bucket data
         const bucket = league_1.LeagueBucketSchema.parse(bucketData);
-        // 6. Check capacity
+        // 10. Check capacity
         if (bucket.players.length >= 30) {
             throw new Error(`Bucket ${bucketId} is full`);
         }
-        // 7. Check if user already in bucket
+        // 11. Check if user already in bucket
         const existingPlayer = bucket.players.find((p) => p.uid === uid);
         if (existingPlayer) {
-            // Already assigned, return
-            return { bucketId, tier: targetTier };
+            return { bucketId: bucketId, tier: targetTier };
         }
-        // 8. Create player entry
+        // 12. Create player entry
         const playerEntry = {
             uid,
             weeklyTrophies: userData.league.weeklyTrophies,
             totalTrophies: userData.trophies,
             joinedAt: firestore_1.Timestamp.now(),
         };
-        // Validate player entry
         league_1.LeaguePlayerEntrySchema.parse(playerEntry);
-        // 10. Add player to bucket
+        // 13. Add player to bucket
+        const bucketRef = firestore_1.db.collection(league_1.LEAGUES_COLLECTION).doc(bucketId);
         const newPlayersCount = bucket.players.length + 1;
         const updates = {
             players: firestore_1.FieldValue.arrayUnion(playerEntry),
             updatedAt: firestore_1.FieldValue.serverTimestamp(),
         };
-        // If bucket becomes full, update status
         if (newPlayersCount >= 30) {
             updates.status = "full";
         }
         tx.update(bucketRef, updates);
-        // 11. Update league meta (if bucket was just created, already updated above)
-        if (bucket.status === "active") {
-            await (0, assignToLeague_helpers_1.updateLeagueMeta)(tx, targetTier, bucketId, seasonId);
+        // 14. Update league meta
+        if (!metaSnap.exists) {
+            const now = firestore_1.Timestamp.now();
+            const newMeta = {
+                openBuckets: {
+                    Teneke: [],
+                    Bronze: [bucketId],
+                    Silver: [],
+                    Gold: [],
+                    Platinum: [],
+                    Diamond: [],
+                },
+                currentSeasonId: seasonId,
+                lastResetAt: null,
+                updatedAt: now,
+            };
+            tx.create(metaRef, newMeta);
         }
-        // 12. Update user document
-        // Refactor: Optimized for O(1) lookup and idempotency
-        // Store currentBucketId to avoid O(N) scan in future assignments
+        else {
+            const currentOpenBuckets = metaData.openBuckets?.[targetTier] || [];
+            if (!currentOpenBuckets.includes(bucketId)) {
+                currentOpenBuckets.push(bucketId);
+            }
+            tx.update(metaRef, {
+                [`openBuckets.${targetTier}`]: currentOpenBuckets,
+                updatedAt: firestore_1.FieldValue.serverTimestamp(),
+            });
+        }
+        // 15. Update user document
         const tierToLeagueName = {
             Teneke: "Teneke",
             Bronze: "BRONZE",
@@ -214,6 +313,6 @@ async function assignToLeague(params) {
             "league.currentLeague": tierToLeagueName[targetTier],
             "league.currentBucketId": bucketId,
         });
-        return { bucketId, tier: targetTier };
+        return { bucketId: bucketId, tier: targetTier };
     });
 }

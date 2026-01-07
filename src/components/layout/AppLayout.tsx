@@ -37,7 +37,7 @@ export function AppLayout({ children, user, userLoading, userError }: Props) {
   const navItems = useMemo(
     () => [
       { href: "/", label: "Arena", icon: Home },
-      { href: "/leaderboard", label: "Lider", icon: Trophy },
+      { href: "/leaderboard", label: "Liderlik", icon: Trophy },
       { href: "/profile", label: "Profil", icon: UserIcon },
     ],
     []

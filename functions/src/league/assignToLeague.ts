@@ -17,18 +17,18 @@ import {
   LeagueBucketSchema,
   LeaguePlayerEntrySchema,
   LeagueTierSchema,
+  LeagueMetaSchema,
   type LeaguePlayerEntry,
   type LeagueTier,
   type LeagueBucketStatus,
+  type LeagueBucket,
+  type LeagueMeta,
   LEAGUES_COLLECTION,
+  SYSTEM_COLLECTION,
+  LEAGUE_META_DOC_ID,
 } from "../shared/types/league";
 import { USER_COLLECTION, type UserDoc } from "../users/types";
-import {
-  findOpenBucket,
-  createNewBucket,
-  updateLeagueMeta,
-  removeUserFromOldBucket,
-} from "./assignToLeague.helpers";
+// Helpers no longer needed - logic moved inline for transaction read/write ordering
 
 // ============================================================================
 // TYPES
@@ -119,6 +119,10 @@ export async function assignToLeague(
   const { uid, seasonId, targetTier: providedTargetTier } = params;
 
   return await db.runTransaction(async (tx) => {
+    // ============================================================================
+    // PHASE 1: ALL READS FIRST (Firestore transaction requirement)
+    // ============================================================================
+    
     // 1. Read user document
     const userRef = db.collection(USER_COLLECTION).doc(uid);
     const userSnap = await tx.get(userRef);
@@ -128,36 +132,31 @@ export async function assignToLeague(
     }
 
     const userData = userSnap.data() as UserDoc;
-    // Note: UserDoc validation should happen at API boundary, not here
-    // But we can add runtime checks if needed
-
-    // Refactor: Optimized for O(1) lookup and idempotency
-    // Get currentBucketId from user document to avoid O(N) scan
     const currentBucketId = userData.league.currentBucketId || null;
 
-    // 2. Remove user from old bucket BEFORE any new assignment
-    // This fixes the Zombie Player Bug: users moving to Teneke must be removed from old bucket
+    // 2. Read old bucket (if exists) - for removal
+    let oldBucketSnap: FirebaseFirestore.DocumentSnapshot | null = null;
+    let oldBucketData: any = null;
     if (currentBucketId) {
-      await removeUserFromOldBucket(tx, uid, currentBucketId);
+      const oldBucketRef = db.collection(LEAGUES_COLLECTION).doc(currentBucketId);
+      oldBucketSnap = await tx.get(oldBucketRef);
+      if (oldBucketSnap.exists) {
+        oldBucketData = oldBucketSnap.data();
+      }
     }
 
     // 3. Determine target tier
     let targetTier: LeagueTier;
 
     if (providedTargetTier) {
-      // Explicit tier provided (e.g., from weeklyReset promotion/demotion)
       targetTier = LeagueTierSchema.parse(providedTargetTier);
     } else {
-      // Auto-determine: Teneke Escape logic
       const currentLeague = userData.league.currentLeague;
       const weeklyTrophies = userData.league.weeklyTrophies;
 
       if (currentLeague === "Teneke" && weeklyTrophies > 0) {
-        // Teneke Escape: Move to Bronze
         targetTier = "Bronze";
       } else {
-        // Keep current league (convert LeagueName to LeagueTier)
-        // Note: LeagueName is "Teneke" | "BRONZE" | "SILVER" | ..., LeagueTier is "Teneke" | "Bronze" | "Silver" | ...
         const tierMap: Record<string, LeagueTier> = {
           Teneke: "Teneke",
           BRONZE: "Bronze",
@@ -170,52 +169,150 @@ export async function assignToLeague(
       }
     }
 
-    // 4. If Teneke, no bucket assignment needed
-    // Zombie Bug Fix: User already removed from old bucket above, now just update user doc
+    // 4. Read league meta (for findOpenBucket)
+    const metaRef = db.collection(SYSTEM_COLLECTION).doc(LEAGUE_META_DOC_ID);
+    const metaSnap = await tx.get(metaRef);
+    
+    let metaData: any = null;
+    if (metaSnap.exists) {
+      metaData = metaSnap.data();
+    }
+
+    // 5. Find or determine bucket ID (read phase)
+    let bucketId: string | null = null;
+    let bucketSnap: FirebaseFirestore.DocumentSnapshot | null = null;
+    let bucketData: any = null;
+
+    if (targetTier !== "Teneke") {
+      // Try to find open bucket from meta
+      if (metaData) {
+        const openBuckets = metaData.openBuckets?.[targetTier] || [];
+        for (const candidateBucketId of openBuckets) {
+          const candidateRef = db.collection(LEAGUES_COLLECTION).doc(candidateBucketId);
+          const candidateSnap = await tx.get(candidateRef);
+          
+          if (candidateSnap.exists) {
+            const candidateData = candidateSnap.data();
+            const candidateBucket = LeagueBucketSchema.safeParse(candidateData);
+            
+            if (
+              candidateBucket.success &&
+              candidateBucket.data.seasonId === seasonId &&
+              candidateBucket.data.status === "active" &&
+              candidateBucket.data.players.length < 30
+            ) {
+              bucketId = candidateBucketId;
+              bucketSnap = candidateSnap;
+              bucketData = candidateData;
+              break;
+            }
+          }
+        }
+      }
+
+      // If no open bucket found, we'll create one (but read first to determine bucket number)
+      if (!bucketId) {
+        // Determine next bucket number from meta
+        let bucketNumber = 1;
+        if (metaData) {
+          const existingBuckets = metaData.openBuckets?.[targetTier] || [];
+          let maxBucketNumber = 0;
+          for (const existingBucketId of existingBuckets) {
+            const parsed = existingBucketId.split("_");
+            if (parsed.length === 3 && parsed[1] === seasonId) {
+              const num = parseInt(parsed[2], 10);
+              if (!isNaN(num) && num > maxBucketNumber) {
+                maxBucketNumber = num;
+              }
+            }
+          }
+          bucketNumber = maxBucketNumber + 1;
+        }
+        // Generate bucket ID (we'll create it in write phase)
+        // Format: {tier}_{seasonId}_{bucketNumber} (e.g., bronze_S1_1)
+        bucketId = `${targetTier.toLowerCase()}_${seasonId}_${bucketNumber}`;
+      } else {
+        // Read bucket data (already read above)
+        bucketData = bucketSnap!.data();
+      }
+    }
+
+    // ============================================================================
+    // PHASE 2: ALL WRITES AFTER ALL READS
+    // ============================================================================
+
+    // 6. Remove user from old bucket (if exists)
+    if (oldBucketSnap && oldBucketSnap.exists && oldBucketData) {
+      const oldBucket = LeagueBucketSchema.safeParse(oldBucketData);
+      if (oldBucket.success) {
+        const playerIndex = oldBucket.data.players.findIndex((p) => p.uid === uid);
+        if (playerIndex !== -1) {
+          const updatedPlayers = oldBucket.data.players.filter((p) => p.uid !== uid);
+          const oldBucketRef = db.collection(LEAGUES_COLLECTION).doc(currentBucketId!);
+          
+          const oldBucketUpdates: {
+            players: LeaguePlayerEntry[];
+            updatedAt: FirebaseFirestore.FieldValue;
+            status?: "active";
+          } = {
+            players: updatedPlayers,
+            updatedAt: FieldValue.serverTimestamp(),
+          };
+          
+          if (oldBucket.data.status === "full" && updatedPlayers.length < 30) {
+            oldBucketUpdates.status = "active";
+          }
+          
+          tx.update(oldBucketRef, oldBucketUpdates);
+        }
+      }
+    }
+
+    // 7. If Teneke, no bucket assignment needed
     if (targetTier === "Teneke") {
-      // Update user league and clear currentBucketId
       tx.update(userRef, {
         "league.currentLeague": "Teneke",
         "league.currentBucketId": FieldValue.delete(),
       });
-      // Return early (no bucket assignment)
       return { bucketId: "", tier: "Teneke" };
     }
 
-    // 4. Find or create bucket
-    let bucketId = await findOpenBucket(tx, targetTier, seasonId);
-
-    if (!bucketId) {
-      // No open bucket found, create new one
-      bucketId = await createNewBucket(tx, targetTier, seasonId);
-      // Update meta to include new bucket
-      await updateLeagueMeta(tx, targetTier, bucketId, seasonId);
+    // 8. Create new bucket if needed
+    if (!bucketSnap || !bucketSnap.exists) {
+      const bucketRef = db.collection(LEAGUES_COLLECTION).doc(bucketId!);
+      const now = Timestamp.now();
+      const newBucket: Omit<LeagueBucket, "players"> & {
+        players: LeaguePlayerEntry[];
+        createdAt: FirebaseFirestore.Timestamp;
+        updatedAt: FirebaseFirestore.Timestamp;
+      } = {
+        tier: targetTier,
+        seasonId,
+        bucketNumber: parseInt(bucketId!.split("_")[2] || "1", 10),
+        status: "active",
+        players: [],
+        createdAt: now,
+        updatedAt: now,
+      };
+      tx.create(bucketRef, newBucket);
+      bucketData = newBucket;
     }
 
-    // 5. Read target bucket
-    const bucketRef = db.collection(LEAGUES_COLLECTION).doc(bucketId);
-    const bucketSnap = await tx.get(bucketRef);
-
-    if (!bucketSnap.exists) {
-      throw new Error(`Bucket ${bucketId} not found after creation`);
-    }
-
-    const bucketData = bucketSnap.data();
+    // 9. Validate bucket data
     const bucket = LeagueBucketSchema.parse(bucketData);
 
-    // 6. Check capacity
+    // 10. Check capacity
     if (bucket.players.length >= 30) {
       throw new Error(`Bucket ${bucketId} is full`);
     }
 
-    // 7. Check if user already in bucket
+    // 11. Check if user already in bucket
     const existingPlayer = bucket.players.find((p) => p.uid === uid);
     if (existingPlayer) {
-      // Already assigned, return
-      return { bucketId, tier: targetTier };
+      return { bucketId: bucketId!, tier: targetTier };
     }
 
-    // 8. Create player entry
+    // 12. Create player entry
     const playerEntry: Omit<LeaguePlayerEntry, "joinedAt"> & {
       joinedAt: FirebaseFirestore.Timestamp;
     } = {
@@ -225,10 +322,10 @@ export async function assignToLeague(
       joinedAt: Timestamp.now(),
     };
 
-    // Validate player entry
     LeaguePlayerEntrySchema.parse(playerEntry);
 
-    // 10. Add player to bucket
+    // 13. Add player to bucket
+    const bucketRef = db.collection(LEAGUES_COLLECTION).doc(bucketId!);
     const newPlayersCount = bucket.players.length + 1;
     const updates: {
       players: FirebaseFirestore.FieldValue;
@@ -239,21 +336,46 @@ export async function assignToLeague(
       updatedAt: FieldValue.serverTimestamp(),
     };
 
-    // If bucket becomes full, update status
     if (newPlayersCount >= 30) {
       updates.status = "full";
     }
 
     tx.update(bucketRef, updates);
 
-    // 11. Update league meta (if bucket was just created, already updated above)
-    if (bucket.status === "active") {
-      await updateLeagueMeta(tx, targetTier, bucketId, seasonId);
+    // 14. Update league meta
+    if (!metaSnap.exists) {
+      const now = Timestamp.now();
+      const newMeta: Omit<LeagueMeta, "lastResetAt"> & {
+        openBuckets: Record<LeagueTier, string[]>;
+        currentSeasonId: string;
+        lastResetAt: null;
+        updatedAt: FirebaseFirestore.Timestamp;
+      } = {
+        openBuckets: {
+          Teneke: [],
+          Bronze: [bucketId!],
+          Silver: [],
+          Gold: [],
+          Platinum: [],
+          Diamond: [],
+        },
+        currentSeasonId: seasonId,
+        lastResetAt: null,
+        updatedAt: now,
+      };
+      tx.create(metaRef, newMeta);
+    } else {
+      const currentOpenBuckets = metaData.openBuckets?.[targetTier] || [];
+      if (!currentOpenBuckets.includes(bucketId!)) {
+        currentOpenBuckets.push(bucketId!);
+      }
+      tx.update(metaRef, {
+        [`openBuckets.${targetTier}`]: currentOpenBuckets,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
     }
 
-    // 12. Update user document
-    // Refactor: Optimized for O(1) lookup and idempotency
-    // Store currentBucketId to avoid O(N) scan in future assignments
+    // 15. Update user document
     const tierToLeagueName: Record<LeagueTier, string> = {
       Teneke: "Teneke",
       Bronze: "BRONZE",
@@ -268,7 +390,7 @@ export async function assignToLeague(
       "league.currentBucketId": bucketId,
     });
 
-    return { bucketId, tier: targetTier };
+    return { bucketId: bucketId!, tier: targetTier };
   });
 }
 
