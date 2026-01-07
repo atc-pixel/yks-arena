@@ -2,6 +2,8 @@ import { onDocumentUpdated } from "firebase-functions/v2/firestore";
 import { db, FieldValue } from "../utils/firestore";
 import { USER_COLLECTION, type UserDoc } from "./types";
 import { calcLevelFromTrophies, clampMin } from "./utils";
+import { SYSTEM_COLLECTION, LEAGUE_META_DOC_ID, LeagueMetaSchema } from "../shared/types/league";
+import { assignToLeague } from "../league/assignToLeague";
 
 type MatchStatus = "WAITING" | "ACTIVE" | "FINISHED";
 
@@ -122,7 +124,7 @@ export const matchOnFinished = onDocumentUpdated(
         level: winnerNewLevel,
         "stats.totalMatches": FieldValue.increment(1),
         "stats.totalWins": FieldValue.increment(1),
-        "league.weeklyScore": FieldValue.increment(winnerDelta),
+        "league.weeklyTrophies": FieldValue.increment(winnerDelta),
         "presence.activeMatchCount": winnerNewActive,
       });
 
@@ -130,7 +132,7 @@ export const matchOnFinished = onDocumentUpdated(
         trophies: loserNewTrophies,
         level: loserNewLevel,
         "stats.totalMatches": FieldValue.increment(1),
-        "league.weeklyScore": FieldValue.increment(loserDelta),
+        "league.weeklyTrophies": FieldValue.increment(loserDelta),
         "presence.activeMatchCount": loserNewActive,
       });
 
@@ -138,5 +140,67 @@ export const matchOnFinished = onDocumentUpdated(
         progression: { phase1ProcessedAt: FieldValue.serverTimestamp() },
       });
     });
+
+    // After transaction: Check for Teneke Escape
+    // If user is in Teneke and has weeklyTrophies > 0, assign to Bronze
+    const [winnerSnapAfter, loserSnapAfter] = await Promise.all([
+      winnerRef.get(),
+      loserRef.get(),
+    ]);
+
+    // Get current season ID from league meta
+    const metaRef = db.collection(SYSTEM_COLLECTION).doc(LEAGUE_META_DOC_ID);
+    const metaSnap = await metaRef.get();
+    
+    let seasonId = "S1"; // Default fallback
+    if (metaSnap.exists) {
+      const metaData = metaSnap.data();
+      const meta = LeagueMetaSchema.safeParse(metaData);
+      if (meta.success) {
+        seasonId = meta.data.currentSeasonId;
+      }
+    }
+
+    // Check winner for Teneke Escape
+    if (winnerSnapAfter.exists) {
+      const winnerData = winnerSnapAfter.data() as UserDoc | undefined;
+      if (
+        winnerData &&
+        winnerData.league.currentLeague === "Teneke" &&
+        winnerData.league.weeklyTrophies > 0
+      ) {
+        try {
+          await assignToLeague({
+            uid: winnerUid,
+            seasonId,
+            // targetTier not provided, will auto-determine (Teneke Escape -> Bronze)
+          });
+        } catch (error) {
+          // Log error but don't fail the match processing
+          console.error(`Failed to assign winner ${winnerUid} to league:`, error);
+        }
+      }
+    }
+
+    // Check loser for Teneke Escape
+    if (loserSnapAfter.exists) {
+      const loserData = loserSnapAfter.data() as UserDoc | undefined;
+      if (
+        loserData &&
+        loserData.league.currentLeague === "Teneke" &&
+        loserData.league.weeklyTrophies > 0
+      ) {
+        try {
+          await assignToLeague({
+            uid: loserUid,
+            seasonId,
+            // targetTier not provided, will auto-determine (Teneke Escape -> Bronze)
+          });
+        } catch (error) {
+          // Log error but don't fail the match processing
+          console.error(`Failed to assign loser ${loserUid} to league:`, error);
+        }
+      }
+    }
   }
 );

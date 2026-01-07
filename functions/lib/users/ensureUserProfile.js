@@ -19,7 +19,7 @@ exports.ensureUserProfile = (0, https_1.onCall)(async (req) => {
         photoURL: null,
         trophies: 0,
         level: 1,
-        league: { currentLeague: "BRONZE", weeklyScore: 0 },
+        league: { currentLeague: "Teneke", weeklyTrophies: 0 },
         stats: { totalMatches: 0, totalWins: 0 },
         economy: {
             energy: 5,

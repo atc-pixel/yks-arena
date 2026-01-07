@@ -2,11 +2,11 @@
 
 import { Timestamp } from "firebase-admin/firestore";
 
-export type LeagueName = "BRONZE" | "SILVER" | "GOLD" | "PLATINUM" | "DIAMOND";
+export type LeagueName = "Teneke" | "BRONZE" | "SILVER" | "GOLD" | "PLATINUM" | "DIAMOND";
 
 export interface UserLeague {
   currentLeague: LeagueName;
-  weeklyScore: number;
+  weeklyTrophies: number;
 }
 
 export interface UserStats {
