@@ -131,7 +131,17 @@ export async function assignToLeague(
     // Note: UserDoc validation should happen at API boundary, not here
     // But we can add runtime checks if needed
 
-    // 2. Determine target tier
+    // Refactor: Optimized for O(1) lookup and idempotency
+    // Get currentBucketId from user document to avoid O(N) scan
+    const currentBucketId = userData.league.currentBucketId || null;
+
+    // 2. Remove user from old bucket BEFORE any new assignment
+    // This fixes the Zombie Player Bug: users moving to Teneke must be removed from old bucket
+    if (currentBucketId) {
+      await removeUserFromOldBucket(tx, uid, currentBucketId);
+    }
+
+    // 3. Determine target tier
     let targetTier: LeagueTier;
 
     if (providedTargetTier) {
@@ -160,14 +170,14 @@ export async function assignToLeague(
       }
     }
 
-    // 3. If Teneke, no bucket assignment needed
+    // 4. If Teneke, no bucket assignment needed
+    // Zombie Bug Fix: User already removed from old bucket above, now just update user doc
     if (targetTier === "Teneke") {
-      // Update user league if needed
-      if (userData.league.currentLeague !== "Teneke") {
-        tx.update(userRef, {
-          "league.currentLeague": "Teneke",
-        });
-      }
+      // Update user league and clear currentBucketId
+      tx.update(userRef, {
+        "league.currentLeague": "Teneke",
+        "league.currentBucketId": FieldValue.delete(),
+      });
       // Return early (no bucket assignment)
       return { bucketId: "", tier: "Teneke" };
     }
@@ -205,10 +215,7 @@ export async function assignToLeague(
       return { bucketId, tier: targetTier };
     }
 
-    // 8. Remove user from old bucket (if exists)
-    await removeUserFromOldBucket(tx, uid, seasonId, bucketId);
-
-    // 9. Create player entry
+    // 8. Create player entry
     const playerEntry: Omit<LeaguePlayerEntry, "joinedAt"> & {
       joinedAt: FirebaseFirestore.Timestamp;
     } = {
@@ -245,6 +252,8 @@ export async function assignToLeague(
     }
 
     // 12. Update user document
+    // Refactor: Optimized for O(1) lookup and idempotency
+    // Store currentBucketId to avoid O(N) scan in future assignments
     const tierToLeagueName: Record<LeagueTier, string> = {
       Teneke: "Teneke",
       Bronze: "BRONZE",
@@ -256,6 +265,7 @@ export async function assignToLeague(
 
     tx.update(userRef, {
       "league.currentLeague": tierToLeagueName[targetTier],
+      "league.currentBucketId": bucketId,
     });
 
     return { bucketId, tier: targetTier };

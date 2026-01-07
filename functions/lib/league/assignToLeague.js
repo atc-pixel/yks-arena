@@ -102,7 +102,15 @@ async function assignToLeague(params) {
         const userData = userSnap.data();
         // Note: UserDoc validation should happen at API boundary, not here
         // But we can add runtime checks if needed
-        // 2. Determine target tier
+        // Refactor: Optimized for O(1) lookup and idempotency
+        // Get currentBucketId from user document to avoid O(N) scan
+        const currentBucketId = userData.league.currentBucketId || null;
+        // 2. Remove user from old bucket BEFORE any new assignment
+        // This fixes the Zombie Player Bug: users moving to Teneke must be removed from old bucket
+        if (currentBucketId) {
+            await (0, assignToLeague_helpers_1.removeUserFromOldBucket)(tx, uid, currentBucketId);
+        }
+        // 3. Determine target tier
         let targetTier;
         if (providedTargetTier) {
             // Explicit tier provided (e.g., from weeklyReset promotion/demotion)
@@ -130,14 +138,14 @@ async function assignToLeague(params) {
                 targetTier = tierMap[currentLeague] || "Teneke";
             }
         }
-        // 3. If Teneke, no bucket assignment needed
+        // 4. If Teneke, no bucket assignment needed
+        // Zombie Bug Fix: User already removed from old bucket above, now just update user doc
         if (targetTier === "Teneke") {
-            // Update user league if needed
-            if (userData.league.currentLeague !== "Teneke") {
-                tx.update(userRef, {
-                    "league.currentLeague": "Teneke",
-                });
-            }
+            // Update user league and clear currentBucketId
+            tx.update(userRef, {
+                "league.currentLeague": "Teneke",
+                "league.currentBucketId": firestore_1.FieldValue.delete(),
+            });
             // Return early (no bucket assignment)
             return { bucketId: "", tier: "Teneke" };
         }
@@ -167,9 +175,7 @@ async function assignToLeague(params) {
             // Already assigned, return
             return { bucketId, tier: targetTier };
         }
-        // 8. Remove user from old bucket (if exists)
-        await (0, assignToLeague_helpers_1.removeUserFromOldBucket)(tx, uid, seasonId, bucketId);
-        // 9. Create player entry
+        // 8. Create player entry
         const playerEntry = {
             uid,
             weeklyTrophies: userData.league.weeklyTrophies,
@@ -194,6 +200,8 @@ async function assignToLeague(params) {
             await (0, assignToLeague_helpers_1.updateLeagueMeta)(tx, targetTier, bucketId, seasonId);
         }
         // 12. Update user document
+        // Refactor: Optimized for O(1) lookup and idempotency
+        // Store currentBucketId to avoid O(N) scan in future assignments
         const tierToLeagueName = {
             Teneke: "Teneke",
             Bronze: "BRONZE",
@@ -204,6 +212,7 @@ async function assignToLeague(params) {
         };
         tx.update(userRef, {
             "league.currentLeague": tierToLeagueName[targetTier],
+            "league.currentBucketId": bucketId,
         });
         return { bucketId, tier: targetTier };
     });

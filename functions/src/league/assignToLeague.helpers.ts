@@ -172,49 +172,59 @@ export async function updateLeagueMeta(
 
 /**
  * Remove user from old bucket
+ * 
+ * Refactor: Optimized for O(1) lookup and idempotency
+ * - Direct bucket lookup using oldBucketId instead of O(N) collection scan
+ * - Silently returns if oldBucketId is empty or document doesn't exist
  */
 export async function removeUserFromOldBucket(
   tx: FirebaseFirestore.Transaction,
   uid: string,
-  seasonId: string,
-  newBucketId: string
+  oldBucketId: string
 ): Promise<void> {
-  const allBucketsQuery = db
-    .collection(LEAGUES_COLLECTION)
-    .where("seasonId", "==", seasonId)
-    .where("status", "in", ["active", "full"]);
-  
-  const allBucketsSnapshot = await allBucketsQuery.get();
-  
-  for (const oldBucketDoc of allBucketsSnapshot.docs) {
-    if (oldBucketDoc.id === newBucketId) continue;
-    
-    const oldBucketData = oldBucketDoc.data();
-    const oldBucket = LeagueBucketSchema.safeParse(oldBucketData);
-    
-    if (!oldBucket.success) continue;
-    
-    const playerIndex = oldBucket.data.players.findIndex((p) => p.uid === uid);
-    if (playerIndex === -1) continue;
-    
-    const oldBucketRef = db.collection(LEAGUES_COLLECTION).doc(oldBucketDoc.id);
-    const updatedPlayers = oldBucket.data.players.filter((p) => p.uid !== uid);
-    
-    const oldBucketUpdates: {
-      players: LeaguePlayerEntry[];
-      updatedAt: FirebaseFirestore.FieldValue;
-      status?: "active";
-    } = {
-      players: updatedPlayers,
-      updatedAt: FieldValue.serverTimestamp(),
-    };
-    
-    if (oldBucket.data.status === "full" && updatedPlayers.length < 30) {
-      oldBucketUpdates.status = "active";
-    }
-    
-    tx.update(oldBucketRef, oldBucketUpdates);
-    break;
+  // Silently return if oldBucketId is empty
+  if (!oldBucketId) {
+    return;
   }
+
+  const oldBucketRef = db.collection(LEAGUES_COLLECTION).doc(oldBucketId);
+  const oldBucketSnap = await tx.get(oldBucketRef);
+
+  // Silently return if document doesn't exist
+  if (!oldBucketSnap.exists) {
+    return;
+  }
+
+  const oldBucketData = oldBucketSnap.data();
+  const oldBucket = LeagueBucketSchema.safeParse(oldBucketData);
+
+  if (!oldBucket.success) {
+    return;
+  }
+
+  const playerIndex = oldBucket.data.players.findIndex((p) => p.uid === uid);
+  
+  // User not in this bucket, nothing to do
+  if (playerIndex === -1) {
+    return;
+  }
+
+  const updatedPlayers = oldBucket.data.players.filter((p) => p.uid !== uid);
+
+  const oldBucketUpdates: {
+    players: LeaguePlayerEntry[];
+    updatedAt: FirebaseFirestore.FieldValue;
+    status?: "active";
+  } = {
+    players: updatedPlayers,
+    updatedAt: FieldValue.serverTimestamp(),
+  };
+
+  // If bucket was full and now has space, reactivate it
+  if (oldBucket.data.status === "full" && updatedPlayers.length < 30) {
+    oldBucketUpdates.status = "active";
+  }
+
+  tx.update(oldBucketRef, oldBucketUpdates);
 }
 

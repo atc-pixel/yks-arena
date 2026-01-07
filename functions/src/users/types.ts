@@ -7,6 +7,7 @@ export type LeagueName = "Teneke" | "BRONZE" | "SILVER" | "GOLD" | "PLATINUM" | 
 export interface UserLeague {
   currentLeague: LeagueName;
   weeklyTrophies: number;
+  currentBucketId?: string | null; // Refactor: Optimized for O(1) lookup and idempotency
 }
 
 export interface UserStats {

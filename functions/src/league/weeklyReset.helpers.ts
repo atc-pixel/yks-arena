@@ -53,6 +53,10 @@ export function getPreviousTier(currentTier: LeagueTier): LeagueTier | null {
 
 /**
  * Create claimable reward document
+ * 
+ * Refactor: Optimized for O(1) lookup and idempotency
+ * - Deterministic rewardId: ${seasonId}_${rewardKey}_${uid}
+ * - Uses tx.set instead of tx.create for idempotency (script can rerun safely)
  */
 export function createClaimableReward(
   tx: FirebaseFirestore.Transaction,
@@ -60,7 +64,8 @@ export function createClaimableReward(
   rewardKey: LeagueRewardKey,
   seasonId: string
 ): void {
-  const rewardId = `reward_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  // Deterministic ID for idempotency
+  const rewardId = `${seasonId}_${rewardKey}_${uid}`;
   const rewardRef = db
     .collection(USER_COLLECTION)
     .doc(uid)
@@ -79,7 +84,8 @@ export function createClaimableReward(
 
   ClaimableRewardSchema.parse(reward);
 
-  tx.create(rewardRef, reward);
+  // Use set instead of create for idempotency (allows script reruns)
+  tx.set(rewardRef, reward);
 }
 
 /**
