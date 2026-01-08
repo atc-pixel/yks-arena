@@ -42,7 +42,35 @@ export function BucketLeaderboard({
 
   const tierColor = tierColors[leagueTier] || tierColors.Teneke;
 
-  if (isInTeneke || !bucket || bucket.players.length === 0) {
+  // Teneke'deki kullanıcıya özel mesaj
+  if (isInTeneke) {
+    return (
+      <motion.div
+        initial={{ scale: 0.95, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        transition={{ delay: 0.1 }}
+        className="rounded-3xl border-4 border-black bg-gradient-to-br from-gray-100 to-gray-200 p-8 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]"
+      >
+        <div className="text-center">
+          <div className="mb-4 text-6xl">🥫</div>
+          <h2 className="mb-2 text-2xl font-black text-gray-800">Teneke Ligi</h2>
+          <p className="mb-6 text-lg font-bold text-gray-600">
+            Henüz bir lige girmedin!
+          </p>
+          <div className="rounded-2xl border-4 border-black bg-yellow-300 p-4 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
+            <p className="text-lg font-black text-black">
+              🎯 Lige girmek için soru cevapla!
+            </p>
+            <p className="mt-2 text-sm font-bold text-black/70">
+              İlk doğru cevabınla Bronze Ligine yükseleceksin.
+            </p>
+          </div>
+        </div>
+      </motion.div>
+    );
+  }
+
+  if (!bucket || bucket.players.length === 0) {
     return null;
   }
 
@@ -131,12 +159,12 @@ export function BucketLeaderboard({
                             SEN
                           </span>
                         )}
-                        {isTop5 && !isCurrentUser && (
+                        {isTop5 && (
                           <span className="rounded bg-lime-500 px-2 py-0.5 text-xs font-black text-white">
                             TERFİ
                           </span>
                         )}
-                        {isBottom5 && !isCurrentUser && (
+                        {isBottom5 && (
                           <span className="rounded bg-orange-500 px-2 py-0.5 text-xs font-black text-white">
                             DÜŞÜŞ
                           </span>

@@ -7,19 +7,24 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "seed:questions": "cd functions && node scripts/seedQuestions.js"
+    "seed:questions": "cd functions && node scripts/seedQuestions.js",
+    "stress-test": "npx tsx scripts/stress-test/run.ts",
+    "stress-test:10": "npx tsx scripts/stress-test/run.ts 10",
+    "stress-test:50": "npx tsx scripts/stress-test/run.ts 50",
+    "stress-test:20": "npx tsx scripts/stress-test/run.ts 20"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.62.0",
     "clsx": "^2.1.1",
     "csv-parse": "^6.1.0",
     "dotenv": "^17.2.3",
+    "firebase": "^12.7.0",
     "firebase-admin": "^13.6.0",
+    "framer-motion": "^12.23.12",
+    "lucide-react": "^0.542.0",
     "next": "16.0.10",
     "react": "19.2.1",
     "react-dom": "19.2.1",
-    "framer-motion": "^12.23.12",
-    "lucide-react": "^0.542.0",
     "tailwind-merge": "^2.6.0",
     "zod": "^3.25.0",
     "zustand": "^5.0.2"
