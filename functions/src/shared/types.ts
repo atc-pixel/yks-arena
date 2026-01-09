@@ -122,8 +122,27 @@ export type QueueTicket = {
   uid: string;
   createdAt: Timestamp;
   status: QueueTicketStatus;
-  // Skill vector: [BILIM%, COGRAFYA%, SPOR%, MATEMATIK%, NormalizedTrophies]
-  skillVector: number[];
+  /**
+   * Matchmaking rating (trophies + shrinkage'lı category accuracy düzeltmesi).
+   * Neden: tek skor + bucket ile hızlı ve ucuz candidate search.
+   */
+  rating: number;
+  /** rating'in bucket karşılığı (MATCH_BUCKET_SIZE ile quantize) */
+  bucket: number;
+  /**
+   * Dominant signature: benzer profil eşleşmesi için.
+   * - NEW (yetersiz örnek)
+   * - "TOP1_TOP2" (örn "BILIM_MATEMATIK")
+   */
+  signature: string;
+
+  /** Eşleşme bulunduğunda iki tarafa da yazılır (idempotent teslim) */
+  matchId?: string;
+
+  /** Contention azaltmak için atomic claim alanları */
+  claimedAt?: Timestamp;
+  claimedBy?: string;
+
   // Bot identification
   isBot: boolean;
   botDifficulty?: number; // 1-10 (only for passive bots)

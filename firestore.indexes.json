@@ -17,6 +17,25 @@
         { "fieldPath": "category", "order": "ASCENDING" },
         { "fieldPath": "randomId", "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "match_queue",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "bucket", "order": "ASCENDING" },
+        { "fieldPath": "signature", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "match_queue",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "bucket", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

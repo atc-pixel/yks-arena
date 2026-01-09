@@ -11,6 +11,7 @@ exports.normalizeTrophies = normalizeTrophies;
 exports.calculateUserVector = calculateUserVector;
 exports.getDynamicThreshold = getDynamicThreshold;
 exports.generateBotSkillVector = generateBotSkillVector;
+exports.computeRatingBucketAndSignature = computeRatingBucketAndSignature;
 const constants_1 = require("../shared/constants");
 // ============================================================================
 // VECTOR CALCULATIONS
@@ -87,4 +88,52 @@ function generateBotSkillVector(profile) {
         randomBetween(min, max), // MATEMATIK
         randomBetween(min, max), // NormalizedTrophies
     ];
+}
+// ============================================================================
+// RATING + SIGNATURE (simplified matchmaking)
+// ============================================================================
+function clamp(value, min, max) {
+    return Math.max(min, Math.min(max, value));
+}
+function safeInt(n) {
+    const v = Number(n);
+    return Number.isFinite(v) ? Math.trunc(v) : 0;
+}
+function smoothedAccuracy(params) {
+    const correct = Math.max(0, params.correct);
+    const total = Math.max(0, params.total);
+    return (correct + constants_1.MATCH_RATING_SHRINK_ALPHA) / (total + constants_1.MATCH_RATING_SHRINK_ALPHA + constants_1.MATCH_RATING_SHRINK_BETA);
+}
+/**
+ * Kullanıcıdan "overall rating + dominant signature" üretir.
+ * Neden: 5D distance yerine, benzer profilleri ucuz query ile eşleştirmek.
+ */
+function computeRatingBucketAndSignature(params) {
+    const trophies = Math.max(0, safeInt(params.trophies));
+    const categoryStats = params.categoryStats ?? null;
+    const perSymbol = constants_1.ALL_SYMBOLS.map((symbol) => {
+        const stat = categoryStats?.[symbol];
+        const correct = safeInt(stat?.correct ?? 0);
+        const total = safeInt(stat?.total ?? 0);
+        return { symbol, correct, total, acc: smoothedAccuracy({ correct, total }) };
+    });
+    const totalAnswered = perSymbol.reduce((sum, s) => sum + s.total, 0);
+    const confidence = clamp(totalAnswered / constants_1.MATCH_RATING_CONFIDENCE_TOTAL, 0, 1);
+    const avgAcc = perSymbol.reduce((sum, s) => sum + s.acc, 0) / perSymbol.length;
+    const accAdjust = Math.round((avgAcc - 0.5) * constants_1.MATCH_RATING_ACC_SCALE * confidence);
+    const rating = trophies + accAdjust;
+    const bucket = Math.floor(rating / constants_1.MATCH_BUCKET_SIZE);
+    let signature = "NEW";
+    if (totalAnswered >= constants_1.MATCH_SIGNATURE_NEW_MIN_TOTAL) {
+        const sorted = [...perSymbol].sort((a, b) => {
+            if (b.acc !== a.acc)
+                return b.acc - a.acc;
+            // deterministic tie-breaker: ALL_SYMBOLS order
+            return constants_1.ALL_SYMBOLS.indexOf(a.symbol) - constants_1.ALL_SYMBOLS.indexOf(b.symbol);
+        });
+        const top1 = sorted[0]?.symbol ?? constants_1.ALL_SYMBOLS[0];
+        const top2 = sorted[1]?.symbol ?? constants_1.ALL_SYMBOLS[1];
+        signature = `${top1}_${top2}`;
+    }
+    return { rating, bucket, signature, totalAnswered };
 }
