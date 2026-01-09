@@ -46,6 +46,13 @@ export const CancelInviteInputSchema = z.object({
   inviteId: z.string().min(1),
 });
 
+// Matchmaking schemas
+export const EnterQueueInputSchema = z.object({
+  forceBot: z.boolean().optional(), // true: 30s timeout sonrası bot ile eşleş
+});
+
+export const LeaveQueueInputSchema = z.object({});
+
 // ============================================================================
 // TYPE EXPORTS
 // ============================================================================
@@ -56,6 +63,8 @@ export type SpinInput = z.infer<typeof SpinInputSchema>;
 export type SubmitAnswerInput = z.infer<typeof SubmitAnswerInputSchema>;
 export type ContinueToNextQuestionInput = z.infer<typeof ContinueToNextQuestionInputSchema>;
 export type CancelInviteInput = z.infer<typeof CancelInviteInputSchema>;
+export type EnterQueueInput = z.infer<typeof EnterQueueInputSchema>;
+export type LeaveQueueInput = z.infer<typeof LeaveQueueInputSchema>;
 
 /**
  * Strict parse - error fırlatır (API input validation için)

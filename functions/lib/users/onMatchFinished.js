@@ -27,6 +27,20 @@ const safeNum = (val) => Math.max(0, Math.floor(Number(val ?? 0)));
 function updatePlayerInBucket(players, uid, delta) {
     return players.map((p) => p.uid === uid ? { ...p, weeklyTrophies: (p.weeklyTrophies || 0) + delta } : p);
 }
+/**
+ * Calculate category stats updates from earned symbols.
+ * Her kazanılan symbol = 2 doğru cevap (Q1 + Q2).
+ * Returns Firestore update object for categoryStats.
+ */
+function buildCategoryStatsUpdate(symbols) {
+    const updates = {};
+    for (const symbol of symbols) {
+        // Her symbol için 2 doğru cevap (Q1 ve Q2'yi geçti)
+        updates[`categoryStats.${symbol}.correct`] = firestore_2.FieldValue.increment(2);
+        updates[`categoryStats.${symbol}.total`] = firestore_2.FieldValue.increment(2);
+    }
+    return updates;
+}
 // ============================================================================
 // MAIN TRIGGER
 // ============================================================================
@@ -55,6 +69,8 @@ exports.matchOnFinished = (0, firestore_1.onDocumentUpdated)("matches/{matchId}"
     let loserCurrentLeague = "Teneke";
     let winnerNewWeeklyTrophies = 0;
     let loserNewWeeklyTrophies = 0;
+    let winnerIsBot = false;
+    let loserIsBot = false;
     // ==================== TRANSACTION ====================
     await firestore_2.db.runTransaction(async (tx) => {
         const matchSnap = await tx.get(matchRef);
@@ -64,31 +80,33 @@ exports.matchOnFinished = (0, firestore_1.onDocumentUpdated)("matches/{matchId}"
         // Idempotency: already processed
         if (match.progression?.phase1ProcessedAt)
             return;
+        // Check if players are bots
+        const playerTypes = match.playerTypes ?? {};
+        winnerIsBot = playerTypes[winnerUid] === "BOT";
+        loserIsBot = playerTypes[loserUid] === "BOT";
         // Calculate deltas from match state
         const stateByUid = match.stateByUid ?? {};
         const winnerMatchKupa = safeNum(stateByUid[winnerUid]?.trophies);
         const loserMatchKupa = safeNum(stateByUid[loserUid]?.trophies);
         const winnerDelta = winnerMatchKupa + WIN_BONUS;
         const loserDelta = loserMatchKupa;
-        // Read user documents
-        const [winnerSnap, loserSnap] = await Promise.all([
-            tx.get(winnerRef),
-            tx.get(loserRef),
-        ]);
-        // If users don't exist, mark processed and skip
-        if (!winnerSnap.exists || !loserSnap.exists) {
+        // Read user documents (only for humans)
+        const winnerSnap = winnerIsBot ? null : await tx.get(winnerRef);
+        const loserSnap = loserIsBot ? null : await tx.get(loserRef);
+        // If human users don't exist, mark processed and skip
+        if ((!winnerIsBot && !winnerSnap?.exists) || (!loserIsBot && !loserSnap?.exists)) {
             tx.update(matchRef, { progression: { phase1ProcessedAt: firestore_2.FieldValue.serverTimestamp() } });
             return;
         }
-        const winnerData = winnerSnap.data();
-        const loserData = loserSnap.data();
-        if (!winnerData || !loserData) {
+        const winnerData = winnerSnap?.data();
+        const loserData = loserSnap?.data();
+        if ((!winnerIsBot && !winnerData) || (!loserIsBot && !loserData)) {
             tx.update(matchRef, { progression: { phase1ProcessedAt: firestore_2.FieldValue.serverTimestamp() } });
             return;
         }
-        // ========== READ BUCKET DOCUMENTS ==========
-        const winnerBucketId = winnerData.league.currentBucketId || null;
-        const loserBucketId = loserData.league.currentBucketId || null;
+        // ========== READ BUCKET DOCUMENTS (only for humans) ==========
+        const winnerBucketId = winnerIsBot ? null : (winnerData?.league.currentBucketId || null);
+        const loserBucketId = loserIsBot ? null : (loserData?.league.currentBucketId || null);
         let winnerBucketPlayers = null;
         let loserBucketPlayers = null;
         // Read winner's bucket
@@ -108,36 +126,45 @@ exports.matchOnFinished = (0, firestore_1.onDocumentUpdated)("matches/{matchId}"
         else if (loserBucketId === winnerBucketId && winnerBucketPlayers) {
             loserBucketPlayers = winnerBucketPlayers; // Same bucket, reuse
         }
-        // ========== CALCULATE NEW VALUES ==========
-        const winnerOldTrophies = Number(winnerData.trophies ?? 0);
-        const loserOldTrophies = Number(loserData.trophies ?? 0);
+        // ========== CALCULATE NEW VALUES (only for humans) ==========
+        const winnerOldTrophies = winnerIsBot ? 0 : Number(winnerData?.trophies ?? 0);
+        const loserOldTrophies = loserIsBot ? 0 : Number(loserData?.trophies ?? 0);
         const winnerNewTrophies = (0, utils_1.clampMin)(winnerOldTrophies + winnerDelta, 0);
         const loserNewTrophies = (0, utils_1.clampMin)(loserOldTrophies + loserDelta, 0);
         const winnerNewLevel = (0, utils_1.calcLevelFromTrophies)(winnerNewTrophies);
         const loserNewLevel = (0, utils_1.calcLevelFromTrophies)(loserNewTrophies);
-        const winnerNewActive = decClamp(Number(winnerData.presence?.activeMatchCount ?? 0));
-        const loserNewActive = decClamp(Number(loserData.presence?.activeMatchCount ?? 0));
-        // Store for Teneke Escape (must be set before writes)
-        winnerCurrentLeague = winnerData.league.currentLeague;
-        loserCurrentLeague = loserData.league.currentLeague;
-        winnerNewWeeklyTrophies = (winnerData.league.weeklyTrophies ?? 0) + winnerDelta;
-        loserNewWeeklyTrophies = (loserData.league.weeklyTrophies ?? 0) + loserDelta;
+        const winnerNewActive = winnerIsBot ? 0 : decClamp(Number(winnerData?.presence?.activeMatchCount ?? 0));
+        const loserNewActive = loserIsBot ? 0 : decClamp(Number(loserData?.presence?.activeMatchCount ?? 0));
+        // Store for Teneke Escape (must be set before writes, only for humans)
+        winnerCurrentLeague = winnerIsBot ? "BOT" : (winnerData?.league.currentLeague ?? "Teneke");
+        loserCurrentLeague = loserIsBot ? "BOT" : (loserData?.league.currentLeague ?? "Teneke");
+        winnerNewWeeklyTrophies = winnerIsBot ? 0 : ((winnerData?.league.weeklyTrophies ?? 0) + winnerDelta);
+        loserNewWeeklyTrophies = loserIsBot ? 0 : ((loserData?.league.weeklyTrophies ?? 0) + loserDelta);
         // ========== WRITES: UPDATE USER DOCUMENTS ==========
-        tx.update(winnerRef, {
-            trophies: winnerNewTrophies,
-            level: winnerNewLevel,
-            "stats.totalMatches": firestore_2.FieldValue.increment(1),
-            "stats.totalWins": firestore_2.FieldValue.increment(1),
-            "league.weeklyTrophies": firestore_2.FieldValue.increment(winnerDelta),
-            "presence.activeMatchCount": winnerNewActive,
-        });
-        tx.update(loserRef, {
-            trophies: loserNewTrophies,
-            level: loserNewLevel,
-            "stats.totalMatches": firestore_2.FieldValue.increment(1),
-            "league.weeklyTrophies": firestore_2.FieldValue.increment(loserDelta),
-            "presence.activeMatchCount": loserNewActive,
-        });
+        // Build category stats updates from earned symbols
+        const winnerSymbols = (stateByUid[winnerUid]?.symbols ?? []);
+        const loserSymbols = (stateByUid[loserUid]?.symbols ?? []);
+        if (!winnerIsBot) {
+            tx.update(winnerRef, {
+                trophies: winnerNewTrophies,
+                level: winnerNewLevel,
+                "stats.totalMatches": firestore_2.FieldValue.increment(1),
+                "stats.totalWins": firestore_2.FieldValue.increment(1),
+                "league.weeklyTrophies": firestore_2.FieldValue.increment(winnerDelta),
+                "presence.activeMatchCount": winnerNewActive,
+                ...buildCategoryStatsUpdate(winnerSymbols),
+            });
+        }
+        if (!loserIsBot) {
+            tx.update(loserRef, {
+                trophies: loserNewTrophies,
+                level: loserNewLevel,
+                "stats.totalMatches": firestore_2.FieldValue.increment(1),
+                "league.weeklyTrophies": firestore_2.FieldValue.increment(loserDelta),
+                "presence.activeMatchCount": loserNewActive,
+                ...buildCategoryStatsUpdate(loserSymbols),
+            });
+        }
         // ========== WRITES: UPDATE BUCKET PLAYER ENTRIES ==========
         if (winnerBucketId && winnerBucketId === loserBucketId && winnerBucketPlayers) {
             // Case 1: Both players in same bucket - single update
@@ -176,8 +203,8 @@ exports.matchOnFinished = (0, firestore_1.onDocumentUpdated)("matches/{matchId}"
             seasonId = meta.data.currentSeasonId;
         }
     }
-    // Check winner for Teneke Escape
-    if (winnerCurrentLeague === "Teneke" && winnerNewWeeklyTrophies > 0) {
+    // Check winner for Teneke Escape (skip bots)
+    if (!winnerIsBot && winnerCurrentLeague === "Teneke" && winnerNewWeeklyTrophies > 0) {
         try {
             console.log(`[Teneke Escape] Assigning winner ${winnerUid} to Bronze (weeklyTrophies: ${winnerNewWeeklyTrophies})`);
             const result = await (0, assignToLeague_1.assignToLeague)({ uid: winnerUid, seasonId });
@@ -190,11 +217,11 @@ exports.matchOnFinished = (0, firestore_1.onDocumentUpdated)("matches/{matchId}"
             }
         }
     }
-    else {
+    else if (!winnerIsBot) {
         console.log(`[Teneke Escape] Winner ${winnerUid} skip: currentLeague=${winnerCurrentLeague}, weeklyTrophies=${winnerNewWeeklyTrophies}`);
     }
-    // Check loser for Teneke Escape
-    if (loserCurrentLeague === "Teneke" && loserNewWeeklyTrophies > 0) {
+    // Check loser for Teneke Escape (skip bots)
+    if (!loserIsBot && loserCurrentLeague === "Teneke" && loserNewWeeklyTrophies > 0) {
         try {
             console.log(`[Teneke Escape] Assigning loser ${loserUid} to Bronze (weeklyTrophies: ${loserNewWeeklyTrophies})`);
             const result = await (0, assignToLeague_1.assignToLeague)({ uid: loserUid, seasonId });
@@ -207,7 +234,7 @@ exports.matchOnFinished = (0, firestore_1.onDocumentUpdated)("matches/{matchId}"
             }
         }
     }
-    else {
+    else if (!loserIsBot) {
         console.log(`[Teneke Escape] Loser ${loserUid} skip: currentLeague=${loserCurrentLeague}, weeklyTrophies=${loserNewWeeklyTrophies}`);
     }
 });

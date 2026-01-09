@@ -11,7 +11,7 @@
  * - strictParse kullanıyoruz (invalid input gelirse exception fırlatır)
  */
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.CancelInviteInputSchema = exports.ContinueToNextQuestionInputSchema = exports.SubmitAnswerInputSchema = exports.SpinInputSchema = exports.JoinInviteInputSchema = exports.CreateInviteInputSchema = exports.ChoiceKeySchema = void 0;
+exports.LeaveQueueInputSchema = exports.EnterQueueInputSchema = exports.CancelInviteInputSchema = exports.ContinueToNextQuestionInputSchema = exports.SubmitAnswerInputSchema = exports.SpinInputSchema = exports.JoinInviteInputSchema = exports.CreateInviteInputSchema = exports.ChoiceKeySchema = void 0;
 exports.strictParse = strictParse;
 const zod_1 = require("zod");
 // ============================================================================
@@ -39,6 +39,11 @@ exports.ContinueToNextQuestionInputSchema = zod_1.z.object({
 exports.CancelInviteInputSchema = zod_1.z.object({
     inviteId: zod_1.z.string().min(1),
 });
+// Matchmaking schemas
+exports.EnterQueueInputSchema = zod_1.z.object({
+    forceBot: zod_1.z.boolean().optional(), // true: 30s timeout sonrası bot ile eşleş
+});
+exports.LeaveQueueInputSchema = zod_1.z.object({});
 /**
  * Strict parse - error fırlatır (API input validation için)
  * Invalid input gelirse exception fırlatır, bu durumda HttpsError'a çevrilir

@@ -13,7 +13,7 @@ import { getFirestore, connectFirestoreEmulator, doc, getDoc, type Firestore } f
 import { getFunctions, httpsCallable, connectFunctionsEmulator, type Functions } from "firebase/functions";
 import * as admin from "firebase-admin";
 
-import { BOT_CONFIG, FIREBASE_CONFIG, TEST_CONFIG, type ChoiceKey } from "./config";
+import { BOT_CONFIG, FIREBASE_CONFIG, TEST_CONFIG, PASSIVE_BOT_CORRECT_RATES, type ChoiceKey } from "./config";
 
 // Admin SDK singleton
 let adminInitialized = false;
@@ -110,6 +110,58 @@ export class Bot {
     console.log(`  🎮 ${this.name} joined match: ${result.data.matchId.slice(0, 8)}...`);
     return result.data;
   }
+
+  /**
+   * Enter queue for random matchmaking (with retry for INTERNAL errors)
+   * @param forceBot If true, force match with a bot (used after 30s timeout)
+   * @param maxRetries Max retry attempts for transient errors
+   */
+  async enterQueue(forceBot = false, maxRetries = 3): Promise<{ status: "MATCHED" | "QUEUED"; matchId: string | null; opponentType: "HUMAN" | "BOT" | null }> {
+    this.ensureInit();
+    const fn = httpsCallable<{ forceBot?: boolean }, { status: "MATCHED" | "QUEUED"; matchId: string | null; opponentType: "HUMAN" | "BOT" | null }>(
+      this.functions!,
+      "matchEnterQueue"
+    );
+    
+    let lastError: Error | null = null;
+    
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        const result = await fn({ forceBot });
+        const icon = result.data.status === "MATCHED" ? "🎮" : "⏳";
+        console.log(`  ${icon} ${this.name} enterQueue: status=${result.data.status}, opponent=${result.data.opponentType || "N/A"}`);
+        return result.data;
+      } catch (err) {
+        lastError = err instanceof Error ? err : new Error(String(err));
+        const errMsg = lastError.message;
+        
+        // INTERNAL veya UNAVAILABLE hataları retry edilebilir
+        const isRetryable = errMsg.includes("INTERNAL") || errMsg.includes("UNAVAILABLE") || errMsg.includes("NO_BOTS");
+        
+        if (isRetryable && attempt < maxRetries) {
+          const delay = attempt * 500; // Progressive delay: 500ms, 1000ms, 1500ms
+          console.log(`  ⚠️ ${this.name} enterQueue failed (attempt ${attempt}/${maxRetries}), retrying in ${delay}ms...`);
+          await this.delay(delay);
+          continue;
+        }
+        
+        // Non-retryable error or max retries reached
+        throw lastError;
+      }
+    }
+    
+    throw lastError || new Error("enterQueue failed after max retries");
+  }
+
+  /**
+   * Leave queue (cancel matchmaking)
+   */
+  async leaveQueue(): Promise<void> {
+    this.ensureInit();
+    const fn = httpsCallable<void, { success: boolean }>(this.functions!, "matchLeaveQueue");
+    await fn();
+    console.log(`  ↩️ ${this.name} left queue`);
+  }
   
   /**
    * Spin the wheel
@@ -172,15 +224,25 @@ export class Bot {
   
   /**
    * Pick answer based on correct answer rate config
+   * @param correctAnswer Doğru cevap
+   * @param overrideRate Opsiyonel - farklı bir doğru cevaplama oranı kullan (passive bot için)
    */
-  pickAnswer(correctAnswer: ChoiceKey): ChoiceKey {
-    if (Math.random() < BOT_CONFIG.CORRECT_ANSWER_RATE) {
-      return correctAnswer; // %90 doğru
+  pickAnswer(correctAnswer: ChoiceKey, overrideRate?: number): ChoiceKey {
+    const rate = overrideRate ?? BOT_CONFIG.CORRECT_ANSWER_RATE;
+    if (Math.random() < rate) {
+      return correctAnswer;
     }
-    // %10 yanlış - rastgele farklı şık
+    // Yanlış - rastgele farklı şık
     const choices: ChoiceKey[] = ["A", "B", "C", "D", "E"];
     const wrongChoices = choices.filter(c => c !== correctAnswer);
     return wrongChoices[Math.floor(Math.random() * wrongChoices.length)];
+  }
+  
+  /**
+   * Passive bot difficulty'sine göre doğru cevaplama oranı döndür
+   */
+  static getPassiveBotCorrectRate(difficulty: number): number {
+    return PASSIVE_BOT_CORRECT_RATES[difficulty] ?? 0.60; // default %60
   }
   
   /**

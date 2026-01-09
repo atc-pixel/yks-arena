@@ -59,6 +59,8 @@ export type MatchDoc = {
   stateByUid: Record<string, PlayerState>;
   winnerUid?: string;
   endedReason?: string;
+  // Bot tracking for auto-play logic
+  playerTypes?: Record<string, "HUMAN" | "BOT">;
 };
 
 // ============================================================================
@@ -93,5 +95,37 @@ export type QuestionDoc = {
   questionNumber?: string | null;
   explanation?: string | null;
   difficulty?: number | null;
+};
+
+// ============================================================================
+// USER CATEGORY STATS (for matchmaking skill vector)
+// ============================================================================
+
+/**
+ * Category bazlı doğru/yanlış sayıları.
+ * onMatchFinished'da güncellenir, matchmaking skill vector'ü için kullanılır.
+ */
+export type CategoryStat = {
+  correct: number;
+  total: number;
+};
+
+export type UserCategoryStats = Record<SymbolKey, CategoryStat>;
+
+// ============================================================================
+// QUEUE TYPES (for matchmaking)
+// ============================================================================
+
+export type QueueTicketStatus = "WAITING" | "MATCHED" | "EXPIRED";
+
+export type QueueTicket = {
+  uid: string;
+  createdAt: Timestamp;
+  status: QueueTicketStatus;
+  // Skill vector: [BILIM%, COGRAFYA%, SPOR%, MATEMATIK%, NormalizedTrophies]
+  skillVector: number[];
+  // Bot identification
+  isBot: boolean;
+  botDifficulty?: number; // 1-10 (only for passive bots)
 };
 
