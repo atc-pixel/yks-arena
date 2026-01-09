@@ -118,33 +118,12 @@ export type UserCategoryStats = Record<SymbolKey, CategoryStat>;
 
 export type QueueTicketStatus = "WAITING" | "MATCHED" | "EXPIRED";
 
-export type QueueTicket = {
+
+export interface QueueTicket {
   uid: string;
-  createdAt: Timestamp;
-  status: QueueTicketStatus;
-  /**
-   * Matchmaking rating (trophies + shrinkage'lı category accuracy düzeltmesi).
-   * Neden: tek skor + bucket ile hızlı ve ucuz candidate search.
-   */
-  rating: number;
-  /** rating'in bucket karşılığı (MATCH_BUCKET_SIZE ile quantize) */
-  bucket: number;
-  /**
-   * Dominant signature: benzer profil eşleşmesi için.
-   * - NEW (yetersiz örnek)
-   * - "TOP1_TOP2" (örn "BILIM_MATEMATIK")
-   */
-  signature: string;
-
-  /** Eşleşme bulunduğunda iki tarafa da yazılır (idempotent teslim) */
-  matchId?: string;
-
-  /** Contention azaltmak için atomic claim alanları */
-  claimedAt?: Timestamp;
-  claimedBy?: string;
-
-  // Bot identification
+  createdAt: any; // Firestore Timestamp
+  status: "WAITING" | "MATCHED";
+  skillVector: number[]; // Bu satırın olduğundan emin ol
   isBot: boolean;
-  botDifficulty?: number; // 1-10 (only for passive bots)
-};
-
+  botDifficulty?: number;
+}
