@@ -10,8 +10,7 @@ import { ActiveMatchList } from "@/components/dashboard/ActiveMatchList";
 
 /**
  * Home Page Component
- * 
- * Architecture Decision:
+ * * Architecture Decision:
  * - Component "dumb" kalır, sadece UI render eder
  * - Tüm logic useHomePageLogic hook'unda
  * - UI parçaları ayrı component'lere bölündü
@@ -21,7 +20,7 @@ export default function HomePage() {
     // User data
     user,
     userLoading,
-    userError,
+    userError, // Bu muhtemelen string geliyor (useUser'dan)
     uid,
     energy,
     activeMatchCount,
@@ -56,9 +55,18 @@ export default function HomePage() {
     activeError,
   } = useHomePageLogic();
 
+  // Safe error handling: String mi yoksa Error objesi mi geldiğini kontrol edelim
+  const safeUserErrorMessage = typeof userError === 'object' && userError !== null 
+    ? (userError as Error).message 
+    : (userError as string | null);
+
   return (
-    <AppLayout user={user} userLoading={userLoading} userError={userError}>
-      {/* Error banner */}
+    <AppLayout 
+      user={user} 
+      userLoading={userLoading} 
+      userError={safeUserErrorMessage} 
+    >
+      {/* Error banner (Genel sayfa hataları) */}
       {error && (
         <div className="mb-4 rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
           {error}
@@ -94,7 +102,8 @@ export default function HomePage() {
         energy={energy}
         matches={activeMatches}
         loading={activeLoading}
-        error={activeError}
+        // Hata: Props olarak yalnızca string veya null geçilmeli, Error objesini stringe çeviriyoruz 
+        error={activeError ? (typeof activeError === 'object' && 'message' in activeError ? activeError.message : String(activeError)) : null}
       />
 
       {/* INVITE MODAL */}
@@ -112,4 +121,4 @@ export default function HomePage() {
       )}
     </AppLayout>
   );
-}
+} 
