@@ -30,6 +30,8 @@ export function useLeagueBucket(bucketId: string | null | undefined) {
       
       const unsubscribe = onSnapshot(
         ref,
+        // DÜZELTME: Options parametresi buraya, callbacklerden önce gelmeli
+        { includeMetadataChanges: false },
         (snap) => {
           if (!snap.exists()) {
             onNext(null);
@@ -44,8 +46,8 @@ export function useLeagueBucket(bucketId: string | null | undefined) {
           console.error("useLeagueBucket snapshot error:", err);
           // Error durumunda null döndür, component error handling yapsın
           onNext(null);
-        },
-        { includeMetadataChanges: false }
+        }
+        // Sondaki options nesnesi buradan silindi
       );
 
       return unsubscribe;
