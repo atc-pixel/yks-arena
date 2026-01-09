@@ -1,10 +1,4 @@
-/**
- * useLeagueMeta Hook (React Query Version)
- * 
- * Architecture Decision:
- * - League meta data'yı real-time subscribe ediyoruz
- * - lastResetAt ve currentSeasonId bilgilerini alıyoruz
- */
+// src/features/league/hooks/useLeagueMeta.rq.ts
 
 "use client";
 
@@ -26,6 +20,8 @@ export function useLeagueMeta() {
       
       const unsubscribe = onSnapshot(
         ref,
+        // DÜZELTME: Options parametresi buraya taşındı
+        { includeMetadataChanges: false },
         (snap) => {
           if (!snap.exists()) {
             onNext(null);
@@ -38,14 +34,12 @@ export function useLeagueMeta() {
         },
         (err) => {
           console.error("useLeagueMeta snapshot error:", err);
-          // Error durumunda null döndür, component error handling yapsın
-          // Rules hatası olabilir, emulator'ı restart etmeyi dene
           if (err?.code === "permission-denied" || err?.message?.includes("false for 'get'")) {
             console.warn("[useLeagueMeta] Permission denied - check Firestore rules and emulator restart");
           }
           onNext(null);
-        },
-        { includeMetadataChanges: false }
+        }
+        // Sondaki options nesnesi buradan silindi
       );
 
       return unsubscribe;
@@ -54,4 +48,3 @@ export function useLeagueMeta() {
 
   return { leagueMeta: data, loading, error };
 }
-
