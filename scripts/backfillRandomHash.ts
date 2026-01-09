@@ -51,7 +51,7 @@ async function main() {
     for (const doc of snap.docs) {
       scanned++;
 
-      const data = doc.data() as any;
+      const data = doc.data();
       if (typeof data.randomHash === "string" && data.randomHash.trim().length > 0) {
         continue;
       }

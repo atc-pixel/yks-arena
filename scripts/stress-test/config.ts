@@ -17,18 +17,37 @@ export const BOT_CONFIG = {
   // Maç sonrası tekrar maç arama ihtimali (%30)
   REMATCH_CHANCE: 0.30,
   
-  // Simüle edilmiş "düşünme" süresi (ms)
-  THINK_DELAY_MS: 400,
+  // Her hamle öncesi random bekleme aralığı (ms)
+  // Gerçek kullanıcı davranışını simüle eder
+  MIN_ACTION_DELAY_MS: 200,
+  MAX_ACTION_DELAY_MS: 3000,
   
-  // Spin sonrası bekleme
-  SPIN_DELAY_MS: 300,
-  
-  // Result görüntüleme süresi
-  RESULT_DELAY_MS: 200,
-  
-  // İlk hamle öncesi maksimum random bekleme (maçları asenkron yapar)
-  INITIAL_DELAY_MAX_MS: 2000,
+  // Maç arama öncesi random bekleme (staggered start)
+  MIN_QUEUE_DELAY_MS: 0,
+  MAX_QUEUE_DELAY_MS: 3000,
 };
+
+/**
+ * Random delay üret (min-max arası)
+ * Her hamleden önce çağrılır - gerçek kullanıcı simülasyonu
+ */
+export function randomDelay(minMs: number, maxMs: number): number {
+  return Math.floor(Math.random() * (maxMs - minMs + 1)) + minMs;
+}
+
+/**
+ * Hamle öncesi random bekleme
+ */
+export function getActionDelay(): number {
+  return randomDelay(BOT_CONFIG.MIN_ACTION_DELAY_MS, BOT_CONFIG.MAX_ACTION_DELAY_MS);
+}
+
+/**
+ * Queue girişi öncesi random bekleme (staggered start)
+ */
+export function getQueueDelay(): number {
+  return randomDelay(BOT_CONFIG.MIN_QUEUE_DELAY_MS, BOT_CONFIG.MAX_QUEUE_DELAY_MS);
+}
 
 /**
  * Passive Bot Difficulty → Correct Answer Rate Mapping
@@ -62,8 +81,11 @@ export const TEST_CONFIG = {
   MATCH_TIMEOUT_MS: 180_000, // 3 dakika max per match
   FUNCTION_TIMEOUT_MS: 15_000, // 15s per function call
   
-  // Queue timeout (client-side, matches backend QUEUE_TIMEOUT_SECONDS)
-  QUEUE_TIMEOUT_SECONDS: 30,
+  // Bot dahil etme süresi (backend ile aynı)
+  BOT_INCLUSION_SECONDS: 15,
+  
+  // Polling interval (queue'da beklerken)
+  QUEUE_POLL_INTERVAL_MS: 2000,
 };
 
 // Firebase config (emulator için minimal config yeterli)

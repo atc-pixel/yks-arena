@@ -5,6 +5,11 @@
  * - Admin SDK ile custom token oluşturulur
  * - Client SDK ile authenticate olur
  * - httpsCallable ile functions çağırır
+ * 
+ * Test botları gerçek kullanıcı gibi davranır:
+ * - match_queue'ya girerler
+ * - Birbirleriyle veya pasif botlarla eşleşebilirler
+ * - Her hamle öncesi rastgele bekleme yaparlar (0-3s)
  */
 
 import { initializeApp, deleteApp, type FirebaseApp } from "firebase/app";
@@ -13,7 +18,14 @@ import { getFirestore, connectFirestoreEmulator, doc, getDoc, type Firestore } f
 import { getFunctions, httpsCallable, connectFunctionsEmulator, type Functions } from "firebase/functions";
 import * as admin from "firebase-admin";
 
-import { BOT_CONFIG, FIREBASE_CONFIG, TEST_CONFIG, PASSIVE_BOT_CORRECT_RATES, type ChoiceKey } from "./config";
+import { 
+  BOT_CONFIG, 
+  FIREBASE_CONFIG, 
+  TEST_CONFIG, 
+  PASSIVE_BOT_CORRECT_RATES, 
+  getActionDelay,
+  type ChoiceKey 
+} from "./config";
 
 // Admin SDK singleton
 let adminInitialized = false;
@@ -33,6 +45,21 @@ function getAdminApp() {
   return admin;
 }
 
+// ============================================================================
+// TYPES
+// ============================================================================
+
+type EnterQueueResult = { 
+  status: "MATCHED" | "QUEUED"; 
+  matchId: string | null; 
+  opponentType: "HUMAN" | "BOT" | null;
+  waitSeconds?: number;
+};
+
+// ============================================================================
+// BOT CLASS
+// ============================================================================
+
 export class Bot {
   readonly uid: string;
   readonly name: string;
@@ -51,7 +78,6 @@ export class Bot {
   constructor(name: string, existingUid?: string) {
     this.name = name;
     this.isReused = !!existingUid;
-    // Eğer mevcut uid verilmişse onu kullan, yoksa yeni oluştur
     this.uid = existingUid ?? `bot-${name}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   }
   
@@ -70,7 +96,7 @@ export class Bot {
     this.app = initializeApp(FIREBASE_CONFIG, `bot-${this.uid}`);
     this.auth = getAuth(this.app);
     this.db = getFirestore(this.app);
-    this.functions = getFunctions(this.app, "us-central1"); // Emulator uses us-central1
+    this.functions = getFunctions(this.app, "us-central1");
     
     // 3. Connect to emulators
     connectAuthEmulator(this.auth, `http://${TEST_CONFIG.AUTH_EMULATOR_HOST}`, { disableWarnings: true });
@@ -80,7 +106,7 @@ export class Bot {
     // 4. Sign in with custom token
     await signInWithCustomToken(this.auth, customToken);
     
-    // 5. Ensure user profile exists (like real client does)
+    // 5. Ensure user profile exists
     const ensureUserProfile = httpsCallable(this.functions, "ensureUserProfile");
     await ensureUserProfile({});
     
@@ -112,13 +138,16 @@ export class Bot {
   }
 
   /**
-   * Enter queue for random matchmaking (with retry for INTERNAL errors)
-   * @param forceBot If true, force match with a bot (used after 30s timeout)
-   * @param maxRetries Max retry attempts for transient errors
+   * Enter queue for random matchmaking
+   * 
+   * Yeni akış:
+   * - İlk 15 saniye: Sadece gerçek kullanıcılarla eşleş
+   * - 15 saniye sonra: bot_pool da dahil edilir
+   * - forceBot yok - backend otomatik yönetiyor
    */
-  async enterQueue(forceBot = false, maxRetries = 3): Promise<{ status: "MATCHED" | "QUEUED"; matchId: string | null; opponentType: "HUMAN" | "BOT" | null }> {
+  async enterQueue(maxRetries = 3): Promise<EnterQueueResult> {
     this.ensureInit();
-    const fn = httpsCallable<{ forceBot?: boolean }, { status: "MATCHED" | "QUEUED"; matchId: string | null; opponentType: "HUMAN" | "BOT" | null }>(
+    const fn = httpsCallable<Record<string, never>, EnterQueueResult>(
       this.functions!,
       "matchEnterQueue"
     );
@@ -127,25 +156,25 @@ export class Bot {
     
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
-        const result = await fn({ forceBot });
+        const result = await fn({});
         const icon = result.data.status === "MATCHED" ? "🎮" : "⏳";
-        console.log(`  ${icon} ${this.name} enterQueue: status=${result.data.status}, opponent=${result.data.opponentType || "N/A"}`);
+        const waitInfo = result.data.waitSeconds ? ` (waited ${result.data.waitSeconds}s)` : "";
+        console.log(`  ${icon} ${this.name} enterQueue: status=${result.data.status}, opponent=${result.data.opponentType || "N/A"}${waitInfo}`);
         return result.data;
       } catch (err) {
         lastError = err instanceof Error ? err : new Error(String(err));
         const errMsg = lastError.message;
         
         // INTERNAL veya UNAVAILABLE hataları retry edilebilir
-        const isRetryable = errMsg.includes("INTERNAL") || errMsg.includes("UNAVAILABLE") || errMsg.includes("NO_BOTS");
+        const isRetryable = errMsg.includes("INTERNAL") || errMsg.includes("UNAVAILABLE");
         
         if (isRetryable && attempt < maxRetries) {
-          const delay = attempt * 500; // Progressive delay: 500ms, 1000ms, 1500ms
+          const delay = attempt * 500;
           console.log(`  ⚠️ ${this.name} enterQueue failed (attempt ${attempt}/${maxRetries}), retrying in ${delay}ms...`);
           await this.delay(delay);
           continue;
         }
         
-        // Non-retryable error or max retries reached
         throw lastError;
       }
     }
@@ -164,11 +193,14 @@ export class Bot {
   }
   
   /**
-   * Spin the wheel
+   * Spin the wheel - random delay ile (gerçek kullanıcı simülasyonu)
    */
   async spin(matchId: string): Promise<{ symbol: string; questionId: string }> {
     this.ensureInit();
-    await this.delay(BOT_CONFIG.SPIN_DELAY_MS);
+    
+    // Random bekleme (0-3s)
+    const delay = getActionDelay();
+    await this.delay(delay);
     
     const fn = httpsCallable<{ matchId: string }, { symbol: string; questionId: string }>(
       this.functions!,
@@ -180,11 +212,14 @@ export class Bot {
   }
   
   /**
-   * Submit an answer
+   * Submit an answer - random delay ile (gerçek kullanıcı simülasyonu)
    */
   async submitAnswer(matchId: string, answer: ChoiceKey): Promise<{ status: string; phase: string }> {
     this.ensureInit();
-    await this.delay(BOT_CONFIG.THINK_DELAY_MS);
+    
+    // Random bekleme (0-3s) - düşünme süresi
+    const delay = getActionDelay();
+    await this.delay(delay);
     
     const fn = httpsCallable<{ matchId: string; answer: string }, { status: string; phase: string }>(
       this.functions!,
@@ -196,11 +231,14 @@ export class Bot {
   }
   
   /**
-   * Continue to next question (after RESULT phase)
+   * Continue to next question - random delay ile
    */
   async continueToNextQuestion(matchId: string): Promise<{ status: string; phase: string }> {
     this.ensureInit();
-    await this.delay(BOT_CONFIG.RESULT_DELAY_MS);
+    
+    // Random bekleme (0-3s)
+    const delay = getActionDelay();
+    await this.delay(delay);
     
     const fn = httpsCallable<{ matchId: string }, { status: string; phase: string }>(
       this.functions!,
@@ -224,25 +262,22 @@ export class Bot {
   
   /**
    * Pick answer based on correct answer rate config
-   * @param correctAnswer Doğru cevap
-   * @param overrideRate Opsiyonel - farklı bir doğru cevaplama oranı kullan (passive bot için)
    */
   pickAnswer(correctAnswer: ChoiceKey, overrideRate?: number): ChoiceKey {
     const rate = overrideRate ?? BOT_CONFIG.CORRECT_ANSWER_RATE;
     if (Math.random() < rate) {
       return correctAnswer;
     }
-    // Yanlış - rastgele farklı şık
     const choices: ChoiceKey[] = ["A", "B", "C", "D", "E"];
     const wrongChoices = choices.filter(c => c !== correctAnswer);
     return wrongChoices[Math.floor(Math.random() * wrongChoices.length)];
   }
   
   /**
-   * Passive bot difficulty'sine göre doğru cevaplama oranı döndür
+   * Passive bot difficulty'sine göre doğru cevaplama oranı
    */
   static getPassiveBotCorrectRate(difficulty: number): number {
-    return PASSIVE_BOT_CORRECT_RATES[difficulty] ?? 0.60; // default %60
+    return PASSIVE_BOT_CORRECT_RATES[difficulty] ?? 0.60;
   }
   
   /**
@@ -269,4 +304,3 @@ export class Bot {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
 }
-

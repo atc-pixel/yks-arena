@@ -105,7 +105,7 @@ async function assignToLeague(params) {
         const currentBucketId = userData.league.currentBucketId || null;
         // 2. Read old bucket (if exists) - for removal
         let oldBucketSnap = null;
-        let oldBucketData = null;
+        let oldBucketData = undefined;
         if (currentBucketId) {
             const oldBucketRef = firestore_1.db.collection(league_1.LEAGUES_COLLECTION).doc(currentBucketId);
             oldBucketSnap = await tx.get(oldBucketRef);
@@ -139,14 +139,14 @@ async function assignToLeague(params) {
         // 4. Read league meta (for findOpenBucket)
         const metaRef = firestore_1.db.collection(league_1.SYSTEM_COLLECTION).doc(league_1.LEAGUE_META_DOC_ID);
         const metaSnap = await tx.get(metaRef);
-        let metaData = null;
+        let metaData = undefined;
         if (metaSnap.exists) {
             metaData = metaSnap.data();
         }
         // 5. Find or determine bucket ID (read phase)
         let bucketId = null;
         let bucketSnap = null;
-        let bucketData = null;
+        let bucketData = undefined;
         if (targetTier !== "Teneke") {
             // Try to find open bucket from meta
             if (metaData) {
@@ -200,7 +200,7 @@ async function assignToLeague(params) {
         // PHASE 2: ALL WRITES AFTER ALL READS
         // ============================================================================
         // 6. Remove user from old bucket (if exists)
-        if (oldBucketSnap && oldBucketSnap.exists && oldBucketData) {
+        if (oldBucketSnap && oldBucketSnap.exists && oldBucketData !== undefined) {
             const oldBucket = league_1.LeagueBucketSchema.safeParse(oldBucketData);
             if (oldBucket.success) {
                 const playerIndex = oldBucket.data.players.findIndex((p) => p.uid === uid);

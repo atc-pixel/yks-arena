@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { ChevronRight, Swords } from "lucide-react";
 
-import type { MatchWithId } from "@/features/match/hooks/useActiveMatches";
+import type { MatchWithId } from "@/features/match/hooks/useActiveMatches.rq";
 
 function shortUid(uid: string) {
   if (!uid) return "—";

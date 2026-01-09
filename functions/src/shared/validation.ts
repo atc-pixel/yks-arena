@@ -48,7 +48,7 @@ export const CancelInviteInputSchema = z.object({
 
 // Matchmaking schemas
 export const EnterQueueInputSchema = z.object({
-  forceBot: z.boolean().optional(), // true: 30s timeout sonrası bot ile eşleş
+  // forceBot kaldırıldı - 15s sonra otomatik bot dahil edilir
 });
 
 export const LeaveQueueInputSchema = z.object({});

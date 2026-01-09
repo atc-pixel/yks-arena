@@ -136,7 +136,7 @@ export async function assignToLeague(
 
     // 2. Read old bucket (if exists) - for removal
     let oldBucketSnap: FirebaseFirestore.DocumentSnapshot | null = null;
-    let oldBucketData: any = null;
+    let oldBucketData: FirebaseFirestore.DocumentData | undefined = undefined;
     if (currentBucketId) {
       const oldBucketRef = db.collection(LEAGUES_COLLECTION).doc(currentBucketId);
       oldBucketSnap = await tx.get(oldBucketRef);
@@ -173,7 +173,7 @@ export async function assignToLeague(
     const metaRef = db.collection(SYSTEM_COLLECTION).doc(LEAGUE_META_DOC_ID);
     const metaSnap = await tx.get(metaRef);
     
-    let metaData: any = null;
+    let metaData: FirebaseFirestore.DocumentData | undefined = undefined;
     if (metaSnap.exists) {
       metaData = metaSnap.data();
     }
@@ -181,7 +181,7 @@ export async function assignToLeague(
     // 5. Find or determine bucket ID (read phase)
     let bucketId: string | null = null;
     let bucketSnap: FirebaseFirestore.DocumentSnapshot | null = null;
-    let bucketData: any = null;
+    let bucketData: FirebaseFirestore.DocumentData | undefined = undefined;
 
     if (targetTier !== "Teneke") {
       // Try to find open bucket from meta
@@ -242,7 +242,7 @@ export async function assignToLeague(
     // ============================================================================
 
     // 6. Remove user from old bucket (if exists)
-    if (oldBucketSnap && oldBucketSnap.exists && oldBucketData) {
+    if (oldBucketSnap && oldBucketSnap.exists && oldBucketData !== undefined) {
       const oldBucket = LeagueBucketSchema.safeParse(oldBucketData);
       if (oldBucket.success) {
         const playerIndex = oldBucket.data.players.findIndex((p) => p.uid === uid);
@@ -365,7 +365,7 @@ export async function assignToLeague(
       };
       tx.create(metaRef, newMeta);
     } else {
-      const currentOpenBuckets = metaData.openBuckets?.[targetTier] || [];
+      const currentOpenBuckets = metaData!.openBuckets?.[targetTier] || [];
       if (!currentOpenBuckets.includes(bucketId!)) {
         currentOpenBuckets.push(bucketId!);
       }

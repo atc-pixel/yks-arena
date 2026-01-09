@@ -1,7 +1,7 @@
 "use strict";
 // functions/src/shared/constants.ts
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.TROPHY_NORMALIZATION_FACTOR = exports.MATCH_THRESHOLD_MAX = exports.MATCH_THRESHOLD_INCREMENT = exports.MATCH_THRESHOLD_INCREMENT_INTERVAL = exports.MATCH_THRESHOLD_INITIAL = exports.MIN_BOT_POOL_SIZE = exports.QUEUE_TIMEOUT_SECONDS = exports.DEFAULT_CATEGORY = exports.DEFAULT_LIVES = exports.ALL_SYMBOLS = exports.CHOICE_KEYS = void 0;
+exports.TROPHY_NORMALIZATION_FACTOR = exports.MATCH_THRESHOLD_MAX = exports.MATCH_THRESHOLD_INCREMENT = exports.MATCH_THRESHOLD_INCREMENT_INTERVAL = exports.MATCH_THRESHOLD_INITIAL = exports.MIN_BOT_POOL_SIZE = exports.BOT_INCLUSION_THRESHOLD_SECONDS = exports.DEFAULT_CATEGORY = exports.DEFAULT_LIVES = exports.ALL_SYMBOLS = exports.CHOICE_KEYS = void 0;
 exports.CHOICE_KEYS = ["A", "B", "C", "D", "E"];
 exports.ALL_SYMBOLS = ["BILIM", "COGRAFYA", "SPOR", "MATEMATIK"];
 exports.DEFAULT_LIVES = 5;
@@ -10,8 +10,8 @@ exports.DEFAULT_CATEGORY = "BILIM";
 // ============================================================================
 // MATCHMAKING CONFIG
 // ============================================================================
-/** Kullanıcı bu süre içinde eşleşmezse otomatik bot ile eşleşir */
-exports.QUEUE_TIMEOUT_SECONDS = 30;
+/** Kullanıcı bu süre içinde eşleşmezse bot_pool dahil edilir */
+exports.BOT_INCLUSION_THRESHOLD_SECONDS = 15;
 /** Queue'da minimum tutulacak passive bot sayısı */
 exports.MIN_BOT_POOL_SIZE = 50;
 /** Dynamic threshold: başlangıç değeri */

@@ -2,10 +2,12 @@
 /**
  * Passive Bot Pool Management
  *
- * Passive botlar match_queue'da bekler, sadece eşleştirilmeyi bekler.
+ * Passive botlar ayrı "bot_pool" collection'da bekler.
+ * 15 saniye içinde rakip bulunamazsa bot_pool dahil edilir.
  * Naming: bot_passive_xxx
  */
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.BOT_POOL_COLLECTION_NAME = void 0;
 exports.generatePassiveBot = generatePassiveBot;
 exports.ensureBotPool = ensureBotPool;
 exports.replenishBot = replenishBot;
@@ -16,7 +18,7 @@ const matchmaking_utils_1 = require("./matchmaking.utils");
 // ============================================================================
 // CONSTANTS
 // ============================================================================
-const MATCH_QUEUE_COLLECTION = "match_queue";
+const BOT_POOL_COLLECTION = "bot_pool";
 const BOT_BATCH_SIZE = 20; // Her seferde eklenecek bot sayısı
 // Tiered distribution: %20 weak, %40 average, %30 strong, %10 pro
 const PROFILE_DISTRIBUTION = [
@@ -38,7 +40,7 @@ function pickRandom(arr) {
     return arr[Math.floor(Math.random() * arr.length)];
 }
 /**
- * Tek bir passive bot ticket oluştur.
+ * Tek bir passive bot oluştur.
  */
 function generatePassiveBot() {
     const profile = pickRandom(PROFILE_DISTRIBUTION);
@@ -46,9 +48,8 @@ function generatePassiveBot() {
     return {
         uid: `bot_passive_${(0, nanoid_1.nanoid)(12)}`,
         createdAt: firestore_1.Timestamp.now(),
-        status: "WAITING",
+        status: "AVAILABLE",
         skillVector: (0, matchmaking_utils_1.generateBotSkillVector)(profile),
-        isBot: true,
         botDifficulty: pickRandom(difficulties),
     };
 }
@@ -60,14 +61,13 @@ function generatePassiveBot() {
  * Transaction dışında çağrılmalı (async replenishment).
  */
 async function ensureBotPool() {
-    const queueRef = firestore_1.db.collection(MATCH_QUEUE_COLLECTION);
-    // Count waiting passive bots
-    const waitingBotsSnap = await queueRef
-        .where("isBot", "==", true)
-        .where("status", "==", "WAITING")
+    const poolRef = firestore_1.db.collection(BOT_POOL_COLLECTION);
+    // Count available bots in pool
+    const availableBotsSnap = await poolRef
+        .where("status", "==", "AVAILABLE")
         .count()
         .get();
-    const currentBotCount = waitingBotsSnap.data().count;
+    const currentBotCount = availableBotsSnap.data().count;
     // Enough bots? Exit early
     if (currentBotCount >= constants_1.MIN_BOT_POOL_SIZE) {
         return { added: 0, total: currentBotCount };
@@ -77,9 +77,9 @@ async function ensureBotPool() {
     // Batch write new bots
     const batch = firestore_1.db.batch();
     for (let i = 0; i < botsNeeded; i++) {
-        const botTicket = generatePassiveBot();
-        const docRef = queueRef.doc(botTicket.uid);
-        batch.set(docRef, botTicket);
+        const botData = generatePassiveBot();
+        const docRef = poolRef.doc(botData.uid);
+        batch.set(docRef, botData);
     }
     await batch.commit();
     console.log(`[BotPool] Added ${botsNeeded} passive bots. Total: ${currentBotCount + botsNeeded}`);
@@ -91,12 +91,16 @@ async function ensureBotPool() {
  */
 async function replenishBot() {
     try {
-        const queueRef = firestore_1.db.collection(MATCH_QUEUE_COLLECTION);
-        const botTicket = generatePassiveBot();
-        await queueRef.doc(botTicket.uid).set(botTicket);
-        console.log(`[BotPool] Replenished: ${botTicket.uid}`);
+        const poolRef = firestore_1.db.collection(BOT_POOL_COLLECTION);
+        const botData = generatePassiveBot();
+        await poolRef.doc(botData.uid).set(botData);
+        console.log(`[BotPool] Replenished: ${botData.uid}`);
     }
     catch (error) {
         console.error("[BotPool] Replenish failed:", error);
     }
 }
+/**
+ * Bot pool collection adını export et (enterQueue'da kullanılacak)
+ */
+exports.BOT_POOL_COLLECTION_NAME = BOT_POOL_COLLECTION;

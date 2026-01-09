@@ -9,7 +9,7 @@
 
 import { useMemo } from "react";
 import { auth } from "@/lib/firebase/client";
-import { useMatch } from "@/features/match/hooks/useMatch";
+import { useMatch } from "@/features/match/hooks/useMatch.rq";
 import type { MatchDoc, PlayerState, SymbolKey } from "@/lib/validation/schemas";
 
 /**

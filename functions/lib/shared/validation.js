@@ -41,7 +41,7 @@ exports.CancelInviteInputSchema = zod_1.z.object({
 });
 // Matchmaking schemas
 exports.EnterQueueInputSchema = zod_1.z.object({
-    forceBot: zod_1.z.boolean().optional(), // true: 30s timeout sonrası bot ile eşleş
+// forceBot kaldırıldı - 15s sonra otomatik bot dahil edilir
 });
 exports.LeaveQueueInputSchema = zod_1.z.object({});
 /**
