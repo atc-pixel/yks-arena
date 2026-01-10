@@ -48,6 +48,13 @@ export default function HomePage() {
     // Actions
     onCreateInvite,
     onJoin,
+    onEnterQueue,
+    onLeaveQueue,
+
+    // Queue state
+    isQueuing,
+    queueStatus,
+    queueWaitSeconds,
 
     // Active matches
     activeMatches,
@@ -78,8 +85,13 @@ export default function HomePage() {
         activeMatchCount={activeMatchCount}
         energy={energy}
         canPlay={canPlay}
-        busy={busy === "create"}
+        busyMatchmaking={busy === "matchmaking"}
+        busyInvite={busy === "create"}
+        isQueuing={isQueuing}
+        queueWaitSeconds={queueWaitSeconds}
         startMatchReason={startMatchReason}
+        onEnterQueue={onEnterQueue}
+        onLeaveQueue={onLeaveQueue}
         onCreateInvite={onCreateInvite}
       />
 

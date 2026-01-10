@@ -191,6 +191,10 @@ export const CancelInviteInputSchema = z.object({
   inviteId: z.string().min(1),
 });
 
+// Matchmaking schemas
+export const EnterQueueInputSchema = z.object({});
+export const LeaveQueueInputSchema = z.object({});
+
 // ============================================================================
 // TYPE EXPORTS (Zod'dan infer edilen types + utility types)
 // ============================================================================

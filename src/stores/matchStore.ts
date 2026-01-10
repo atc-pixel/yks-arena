@@ -19,6 +19,13 @@ type MatchUIState = {
   setCopied: (copied: boolean) => void;
   resetInvite: () => void;
 
+  // Queue state (matchmaking)
+  isQueuing: boolean;
+  queueStatus: "MATCHED" | "QUEUED" | null;
+  queueWaitSeconds: number | null;
+  setQueueState: (status: "MATCHED" | "QUEUED" | null, waitSeconds?: number) => void;
+  resetQueue: () => void;
+
   // Question panel UI state (local, component-specific olabilir ama global de tutabiliriz)
   selectedAnswer: ChoiceKey | null;
   setSelectedAnswer: (answer: ChoiceKey | null) => void;
@@ -32,6 +39,18 @@ export const useMatchStore = create<MatchUIState>((set) => ({
   setInviteState: (code, matchId) => set({ createdInviteCode: code, createdMatchId: matchId }),
   setCopied: (copied) => set({ copied }),
   resetInvite: () => set({ createdInviteCode: null, createdMatchId: null, copied: false }),
+
+  // Queue state
+  isQueuing: false,
+  queueStatus: null,
+  queueWaitSeconds: null,
+  setQueueState: (status, waitSeconds) =>
+    set({
+      queueStatus: status,
+      isQueuing: status === "QUEUED",
+      queueWaitSeconds: waitSeconds ?? null,
+    }),
+  resetQueue: () => set({ isQueuing: false, queueStatus: null, queueWaitSeconds: null }),
 
   // Question state
   selectedAnswer: null,

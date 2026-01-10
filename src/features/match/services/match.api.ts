@@ -10,6 +10,8 @@ import {
   SubmitAnswerInputSchema,
   ContinueToNextQuestionInputSchema,
   CancelInviteInputSchema,
+  EnterQueueInputSchema,
+  LeaveQueueInputSchema,
 } from "@/lib/validation/schemas";
 import { strictParse } from "@/lib/validation/utils";
 
@@ -29,6 +31,15 @@ export type SubmitAnswerResponse = {
   phase: MatchDoc["turn"]["phase"];
 };
 
+export type EnterQueueResult = {
+  status: "MATCHED" | "QUEUED";
+  matchId: string | null;
+  opponentType: "HUMAN" | "BOT" | null;
+  waitSeconds?: number;
+};
+
+export type LeaveQueueResponse = { success: boolean };
+
 // Callable names (tek yerden yönetelim)
 const FN = {
   createInvite: "matchCreateInvite",
@@ -37,6 +48,8 @@ const FN = {
   submitAnswer: "matchSubmitAnswer",
   continueToNextQuestion: "matchContinueToNextQuestion",
   cancelInvite: "cancelInvite", // <-- backend export ismine göre ayarla
+  enterQueue: "matchEnterQueue",
+  leaveQueue: "matchLeaveQueue",
 } as const;
 
 /**
@@ -108,5 +121,23 @@ export async function cancelInvite(inviteId: string) {
   
   const fn = httpsCallable<{ inviteId: string }, CancelInviteResponse>(functions, FN.cancelInvite);
   const res = await fn(validated);
+  return res.data;
+}
+
+export async function enterQueue() {
+  // Input validation (empty object)
+  strictParse(EnterQueueInputSchema, {}, "enterQueue");
+  
+  const fn = httpsCallable<void, EnterQueueResult>(functions, FN.enterQueue);
+  const res = await fn();
+  return res.data;
+}
+
+export async function leaveQueue() {
+  // Input validation (empty object)
+  strictParse(LeaveQueueInputSchema, {}, "leaveQueue");
+  
+  const fn = httpsCallable<void, LeaveQueueResponse>(functions, FN.leaveQueue);
+  const res = await fn();
   return res.data;
 }

@@ -20,6 +20,10 @@ import {
   useCancelInviteMutation,
   useAutoRedirectOnJoin,
 } from "@/features/match/hooks/useInviteMutations";
+import {
+  useEnterQueueMutation,
+  useLeaveQueueMutation,
+} from "@/features/match/hooks/useMatchmakingMutations";
 
 export function useHomePageLogic() {
   // Auth
@@ -34,6 +38,9 @@ export function useHomePageLogic() {
   const { createdInviteCode, createdMatchId, copied, setInviteState, setCopied, resetInvite } =
     useMatchStore();
 
+  // Queue state (Zustand)
+  const { isQueuing, queueStatus, queueWaitSeconds, setQueueState, resetQueue } = useMatchStore();
+
   // UI state (local)
   const [joinCode, setJoinCode] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -42,6 +49,8 @@ export function useHomePageLogic() {
   const createInviteMutation = useCreateInviteMutation();
   const joinInviteMutation = useJoinInviteMutation();
   const cancelInviteMutation = useCancelInviteMutation();
+  const enterQueueMutation = useEnterQueueMutation();
+  const leaveQueueMutation = useLeaveQueueMutation();
 
   // Active matches (React Query)
   const { matches: activeMatches, loading: activeLoading, error: activeError } =
@@ -65,7 +74,27 @@ export function useHomePageLogic() {
         setError(errorMsg);
       }
     }
-  }, [authError, userError, createInviteMutation.error, joinInviteMutation.error, cancelInviteMutation.error]);
+    if (enterQueueMutation.error) {
+      const errorMsg = enterQueueMutation.error.message;
+      if (errorMsg.includes("ENERGY_ZERO")) {
+        setError("Enerjin yok. Maç başlatmak için enerji refill'ini bekle ya da kutu aç!");
+      } else {
+        setError(errorMsg);
+      }
+    }
+    if (leaveQueueMutation.error) {
+      console.error("Leave queue error:", leaveQueueMutation.error);
+      // Leave queue error'ı kullanıcıya göstermeyiz (silent fail)
+    }
+  }, [
+    authError,
+    userError,
+    createInviteMutation.error,
+    joinInviteMutation.error,
+    cancelInviteMutation.error,
+    enterQueueMutation.error,
+    leaveQueueMutation.error,
+  ]);
 
   // Computed values
   const canJoin = useMemo(() => joinCode.trim().length >= 4, [joinCode]);
@@ -109,6 +138,18 @@ export function useHomePageLogic() {
     joinInviteMutation.mutate(code);
   };
 
+  // Matchmaking actions
+  const onEnterQueue = () => {
+    setError(null);
+    enterQueueMutation.mutate(undefined);
+  };
+
+  const onLeaveQueue = () => {
+    setError(null);
+    resetQueue();
+    leaveQueueMutation.mutate(undefined);
+  };
+
   // Computed values (from Zustand + user data)
   const playDisabledReason =
     energy <= 0 ? "Enerji Yok" : activeMatchCount >= energy ? "Maç Kotası Dolu" : null;
@@ -120,14 +161,77 @@ export function useHomePageLogic() {
       ? "Şu an yeni maç başlatamazsın."
       : null;
 
+  // Queue polling mechanism (QUEUED durumunda 4 saniyede bir enterQueue çağır)
+  useEffect(() => {
+    if (queueStatus !== "QUEUED" || enterQueueMutation.isPending) return;
+
+    const POLL_INTERVAL_MS = 4000; // 4 saniye
+    const MAX_POLL_TIME_MS = 60000; // 60 saniye max
+
+    let pollCount = 0;
+    const maxPolls = Math.ceil(MAX_POLL_TIME_MS / POLL_INTERVAL_MS);
+    let isCleanedUp = false;
+
+    const pollInterval = setInterval(() => {
+      if (isCleanedUp || enterQueueMutation.isPending) return;
+
+      pollCount++;
+      if (pollCount > maxPolls) {
+        clearInterval(pollInterval);
+        if (!isCleanedUp) {
+          resetQueue();
+          setError("Maç bulunamadı. Lütfen tekrar deneyin.");
+        }
+        return;
+      }
+
+      // Mutation kullanarak polling yap
+      enterQueueMutation.mutate(undefined, {
+        onSuccess: (result) => {
+          if (isCleanedUp) return;
+
+          if (result.status === "MATCHED" && result.matchId) {
+            clearInterval(pollInterval);
+            // Redirect mutation hook'u içinde yapılıyor
+          } else if (result.status === "QUEUED") {
+            setQueueState("QUEUED", result.waitSeconds ?? pollCount * (POLL_INTERVAL_MS / 1000));
+          }
+        },
+        onError: () => {
+          if (isCleanedUp) return;
+          clearInterval(pollInterval);
+          resetQueue();
+        },
+      });
+    }, POLL_INTERVAL_MS);
+
+    return () => {
+      isCleanedUp = true;
+      clearInterval(pollInterval);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [queueStatus, setQueueState, resetQueue, setError]);
+
+  // Sayfadan ayrılırken queue'yu temizle (cleanup)
+  useEffect(() => {
+    return () => {
+      if (isQueuing) {
+        leaveQueueMutation.mutate(undefined);
+      }
+    };
+  }, [isQueuing, leaveQueueMutation]);
+
   // Busy states (from mutations)
-  const busy = createInviteMutation.isPending
-    ? "create"
-    : joinInviteMutation.isPending
-      ? "join"
-      : cancelInviteMutation.isPending
+  const busy =
+    enterQueueMutation.isPending || isQueuing
+      ? "matchmaking"
+      : createInviteMutation.isPending
         ? "create"
-        : null;
+        : joinInviteMutation.isPending
+          ? "join"
+          : cancelInviteMutation.isPending
+            ? "create"
+            : null;
 
   return {
     // User data
@@ -163,6 +267,13 @@ export function useHomePageLogic() {
     // Actions
     onCreateInvite,
     onJoin,
+    onEnterQueue,
+    onLeaveQueue,
+
+    // Queue state
+    isQueuing,
+    queueStatus,
+    queueWaitSeconds,
 
     // Active matches
     activeMatches,
