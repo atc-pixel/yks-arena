@@ -39,20 +39,10 @@ async function pickRandomQuestionIdTx(params: {
   used: Set<string>;
   maxAttempts?: number;
 }): Promise<string> {
-  // #region agent log
-  const log = (msg: string, data: any, hypothesisId?: string) => {
-    fetch('http://127.0.0.1:7242/ingest/36a93515-5c69-4ba7-b207-97735e7b3a32',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'submitAnswer.ts:pickRandomQuestionIdTx',message:msg,data:data,timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:hypothesisId||'H1'})}).catch(()=>{});
-  };
-  log('pickRandomQuestionIdTx:ENTRY', { category: params.category, usedCount: params.used.size, maxAttempts: params.maxAttempts }, 'H1');
-  // #endregion
-
   const { tx, category, used, maxAttempts = 14 } = params;
 
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     const r = randInt(RANDOM_ID_MAX);
-    // #region agent log
-    log('pickRandomQuestionIdTx:ATTEMPT', { attempt, randomVal: r, category }, 'H1');
-    // #endregion
 
     let q = db
       .collection("questions")
@@ -62,24 +52,10 @@ async function pickRandomQuestionIdTx(params: {
       .orderBy("randomId", "asc")
       .limit(1);
 
-    // #region agent log
-    log('pickRandomQuestionIdTx:BEFORE_QUERY_ASC', { category, randomId: r }, 'H1');
-    // #endregion
     let snap;
     try {
       snap = await tx.get(q);
-      // #region agent log
-      log('pickRandomQuestionIdTx:AFTER_QUERY_ASC', { empty: snap.empty, size: snap.size, attempt }, 'H1');
-      // #endregion
     } catch (queryError: any) {
-      // #region agent log
-      log('pickRandomQuestionIdTx:QUERY_ERROR_ASC', { 
-        error: queryError?.message || String(queryError),
-        code: queryError?.code,
-        category,
-        randomId: r
-      }, 'H1');
-      // #endregion
       throw queryError;
     }
 
@@ -92,38 +68,18 @@ async function pickRandomQuestionIdTx(params: {
         .orderBy("randomId", "desc")
         .limit(1);
 
-      // #region agent log
-      log('pickRandomQuestionIdTx:BEFORE_QUERY_DESC', { category, randomId: r }, 'H1');
-      // #endregion
       try {
         snap = await tx.get(q);
-        // #region agent log
-        log('pickRandomQuestionIdTx:AFTER_QUERY_DESC', { empty: snap.empty, size: snap.size, attempt }, 'H1');
-        // #endregion
       } catch (queryError: any) {
-        // #region agent log
-        log('pickRandomQuestionIdTx:QUERY_ERROR_DESC', { 
-          error: queryError?.message || String(queryError),
-          code: queryError?.code,
-          category,
-          randomId: r
-        }, 'H1');
-        // #endregion
         throw queryError;
       }
     }
 
     if (snap.empty) {
-      // #region agent log
-      log('pickRandomQuestionIdTx:EMPTY_SNAP', { attempt, category }, 'H1');
-      // #endregion
       continue;
     }
 
     const id = snap.docs[0].id;
-    // #region agent log
-    log('pickRandomQuestionIdTx:FOUND_QUESTION', { id, used: used.has(id), attempt }, 'H1');
-    // #endregion
     if (!used.has(id)) return id;
   }
 
@@ -136,13 +92,6 @@ async function pickRandomQuestionIdTx(params: {
 export const matchSubmitAnswer = onCall(
   { region: "europe-west1" },
   async (req) => {
-  // #region agent log
-  const log = (msg: string, data: any, hypothesisId?: string) => {
-    fetch('http://127.0.0.1:7242/ingest/36a93515-5c69-4ba7-b207-97735e7b3a32',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'submitAnswer.ts',message:msg,data:data,timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:hypothesisId||'H1'})}).catch(()=>{});
-  };
-  log('matchSubmitAnswer:ENTRY', { uid: req.auth?.uid, hasData: !!req.data }, 'H1');
-  // #endregion
-
   const uid = req.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Auth required.");
 
@@ -150,13 +99,7 @@ export const matchSubmitAnswer = onCall(
   let validatedInput;
   try {
     validatedInput = strictParse(SubmitAnswerInputSchema, req.data, "matchSubmitAnswer");
-    // #region agent log
-    log('matchSubmitAnswer:VALIDATED', { matchId: validatedInput.matchId, answer: validatedInput.answer }, 'H1');
-    // #endregion
   } catch (error) {
-    // #region agent log
-    log('matchSubmitAnswer:VALIDATION_ERROR', { error: error instanceof Error ? error.message : String(error) }, 'H1');
-    // #endregion
     throw new HttpsError("invalid-argument", error instanceof Error ? error.message : "Invalid input");
   }
 
@@ -169,13 +112,7 @@ export const matchSubmitAnswer = onCall(
   const matchRef = db.collection("matches").doc(matchId);
 
   const result = await db.runTransaction(async (tx) => {
-    // #region agent log
-    log('matchSubmitAnswer:TX_START', { matchId }, 'H1');
-    // #endregion
     const matchSnap = await tx.get(matchRef);
-    // #region agent log
-    log('matchSubmitAnswer:MATCH_READ', { exists: matchSnap.exists, matchId }, 'H1');
-    // #endregion
     if (!matchSnap.exists) throw new HttpsError("not-found", "Match not found");
 
     // Read user energy (GLOBAL wrong allowance)
@@ -227,32 +164,13 @@ export const matchSubmitAnswer = onCall(
 
     // Read question
     const qRef = db.collection("questions").doc(questionId);
-    // #region agent log
-    log('matchSubmitAnswer:BEFORE_QUESTION_READ', { questionId, symbol }, 'H2');
-    // #endregion
     const qSnap = await tx.get(qRef);
-    // #region agent log
-    log('matchSubmitAnswer:AFTER_QUESTION_READ', { exists: qSnap.exists, questionId }, 'H2');
-    // #endregion
     if (!qSnap.exists) throw new HttpsError("failed-precondition", "Question doc missing");
 
     const q = qSnap.data() as QuestionDoc | undefined;
-    // #region agent log
-    log('matchSubmitAnswer:QUESTION_DATA', { 
-      hasQ: !!q, 
-      category: q?.category, 
-      hasAnswer: 'answer' in (q || {}),
-      answerType: typeof q?.answer,
-      answerValue: q?.answer,
-      allFields: q ? Object.keys(q) : []
-    }, 'H2');
-    // #endregion
     if (!q) throw new HttpsError("internal", "Question data is invalid");
     const correctAnswer: ChoiceKey = q.answer;
     const isCorrect = answer === correctAnswer;
-    // #region agent log
-    log('matchSubmitAnswer:ANSWER_COMPARISON', { correctAnswer, userAnswer: answer, isCorrect }, 'H2');
-    // #endregion
 
     const kupaAwarded = isCorrect ? calcKupaForCorrectAnswer({ matchId, questionId, uid }) : 0;
 
@@ -322,18 +240,12 @@ export const matchSubmitAnswer = onCall(
 
     // If Q1 correct => show result, prepare Q2 but wait for user to continue
     if (questionIndex === 1) {
-      // #region agent log
-      log('matchSubmitAnswer:BEFORE_PICK_Q2', { symbol, usedCount: usedSet.size, questionIndex }, 'H1');
-      // #endregion
       const nextQuestionId = await pickRandomQuestionIdTx({
         tx,
         category: symbol,
         used: usedSet,
         maxAttempts: 14,
       });
-      // #region agent log
-      log('matchSubmitAnswer:AFTER_PICK_Q2', { nextQuestionId, symbol }, 'H1');
-      // #endregion
 
       tx.update(matchRef, {
         [`stateByUid.${uid}`]: nextMyState,
@@ -405,8 +317,5 @@ export const matchSubmitAnswer = onCall(
     };
   });
 
-  // #region agent log
-  log('matchSubmitAnswer:SUCCESS', { matchId, result: 'completed' }, 'H1');
-  // #endregion
   return result;
 });
