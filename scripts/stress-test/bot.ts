@@ -109,9 +109,8 @@ export class Bot {
     // 5. Ensure user profile exists (Admin SDK ile direkt oluştur)
     // NOTE: ensureUserProfile artık callable değil, bir Auth Trigger.
     // Emulator'da trigger çalışmayabilir, bu yüzden Admin SDK ile direkt oluşturuyoruz.
-    const adminApp = getAdminApp();
-    const db = adminApp.firestore();
-    const userRef = db.collection("users").doc(this.uid);
+    const adminDb = adminApp.firestore();
+    const userRef = adminDb.collection("users").doc(this.uid);
     
     const existing = await userRef.get();
     if (!existing.exists) {
@@ -131,9 +130,9 @@ export class Bot {
         economy: {
           energy: 30,
           maxEnergy: 5,
-          lastEnergyRefill: adminApp.firestore.FieldValue.serverTimestamp(),
+          lastEnergyRefill: adminDb.FieldValue.serverTimestamp(),
         },
-        createdAt: adminApp.firestore.FieldValue.serverTimestamp(),
+        createdAt: adminDb.FieldValue.serverTimestamp(),
       });
     }
     
