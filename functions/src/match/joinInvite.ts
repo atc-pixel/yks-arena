@@ -6,7 +6,9 @@ import type { UserDoc } from "../users/types";
 import type { InviteDoc } from "../shared/types";
 import { JoinInviteInputSchema, strictParse } from "../shared/validation";
 
-export const matchJoinInvite = onCall(async (req) => {
+export const matchJoinInvite = onCall(
+  { region: "europe-west1" },
+  async (req) => {
   const uid = req.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Auth required.");
 

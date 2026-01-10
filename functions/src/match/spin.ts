@@ -65,7 +65,9 @@ async function pickRandomQuestionIdTx(params: {
   );
 }
 
-export const matchSpin = onCall(async (req) => {
+export const matchSpin = onCall(
+  { region: "europe-west1" },
+  async (req) => {
   const uid = req.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Auth required.");
 

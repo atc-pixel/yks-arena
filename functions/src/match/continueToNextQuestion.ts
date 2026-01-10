@@ -11,7 +11,9 @@ import { ContinueToNextQuestionInputSchema, strictParse } from "../shared/valida
  * - Kullanıcı "Devam" butonuna basınca bu function çağrılır
  * - nextQuestionId'yi activeQuestionId'ye set eder ve phase'i QUESTION yapar
  */
-export const matchContinueToNextQuestion = onCall(async (req) => {
+export const matchContinueToNextQuestion = onCall(
+  { region: "europe-west1" },
+  async (req) => {
   const uid = req.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Auth required.");
 

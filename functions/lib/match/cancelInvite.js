@@ -12,7 +12,7 @@ const validation_1 = require("../shared/validation");
  * - Decrements host presence.activeMatchCount by 1 (slot refund).
  * - Marks invite as CANCELLED and match as CANCELLED (or CLOSED).
  */
-exports.cancelInvite = (0, https_1.onCall)(async (req) => {
+exports.cancelInvite = (0, https_1.onCall)({ region: "europe-west1" }, async (req) => {
     const uid = req.auth?.uid;
     if (!uid)
         throw new https_1.HttpsError("unauthenticated", "Login required.");

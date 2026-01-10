@@ -106,9 +106,36 @@ export class Bot {
     // 4. Sign in with custom token
     await signInWithCustomToken(this.auth, customToken);
     
-    // 5. Ensure user profile exists
-    const ensureUserProfile = httpsCallable(this.functions, "ensureUserProfile");
-    await ensureUserProfile({});
+    // 5. Ensure user profile exists (Admin SDK ile direkt oluştur)
+    // NOTE: ensureUserProfile artık callable değil, bir Auth Trigger.
+    // Emulator'da trigger çalışmayabilir, bu yüzden Admin SDK ile direkt oluşturuyoruz.
+    const adminApp = getAdminApp();
+    const db = adminApp.firestore();
+    const userRef = db.collection("users").doc(this.uid);
+    
+    const existing = await userRef.get();
+    if (!existing.exists) {
+      // guestNameFromUid logic'i (basit hash)
+      const hashInt = this.uid.split('').reduce((h, c) => (h * 31 + c.charCodeAt(0)) | 0, 0);
+      const n = Math.abs(hashInt) % 10000;
+      const suffix = String(n).padStart(4, "0");
+      const displayName = `Misafir #${suffix}`;
+      
+      await userRef.set({
+        displayName,
+        photoURL: null,
+        trophies: 0,
+        level: 1,
+        league: { currentLeague: "Teneke", weeklyTrophies: 0 },
+        stats: { totalMatches: 0, totalWins: 0 },
+        economy: {
+          energy: 30,
+          maxEnergy: 5,
+          lastEnergyRefill: adminApp.firestore.FieldValue.serverTimestamp(),
+        },
+        createdAt: adminApp.firestore.FieldValue.serverTimestamp(),
+      });
+    }
     
     this.initialized = true;
     const icon = this.isReused ? "♻️" : "🤖";

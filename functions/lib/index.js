@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.cancelInvite = exports.matchOnFinished = exports.ensureUserProfile = exports.matchLeaveQueue = exports.matchEnterQueue = exports.matchContinueToNextQuestion = exports.matchSubmitAnswer = exports.matchSpin = exports.matchJoinInvite = exports.matchCreateInvite = void 0;
+exports.cancelInvite = exports.matchOnFinished = exports.matchLeaveQueue = exports.matchEnterQueue = exports.matchContinueToNextQuestion = exports.matchSubmitAnswer = exports.matchSpin = exports.matchJoinInvite = exports.matchCreateInvite = void 0;
 var createInvite_1 = require("./match/createInvite");
 Object.defineProperty(exports, "matchCreateInvite", { enumerable: true, get: function () { return createInvite_1.matchCreateInvite; } });
 var joinInvite_1 = require("./match/joinInvite");
@@ -16,8 +16,9 @@ var enterQueue_1 = require("./match/enterQueue");
 Object.defineProperty(exports, "matchEnterQueue", { enumerable: true, get: function () { return enterQueue_1.matchEnterQueue; } });
 var leaveQueue_1 = require("./match/leaveQueue");
 Object.defineProperty(exports, "matchLeaveQueue", { enumerable: true, get: function () { return leaveQueue_1.matchLeaveQueue; } });
-var ensureUserProfile_1 = require("./users/ensureUserProfile");
-Object.defineProperty(exports, "ensureUserProfile", { enumerable: true, get: function () { return ensureUserProfile_1.ensureUserProfile; } });
+// NOTE: ensureUserProfile is a Gen 1 Auth Trigger, NOT a callable function.
+// It's automatically triggered on user creation, so we don't export it here.
+// export { ensureUserProfile } from "./users/ensureUserProfile";
 var onMatchFinished_1 = require("./users/onMatchFinished");
 Object.defineProperty(exports, "matchOnFinished", { enumerable: true, get: function () { return onMatchFinished_1.matchOnFinished; } });
 var cancelInvite_1 = require("./match/cancelInvite");

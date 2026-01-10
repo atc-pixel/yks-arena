@@ -6,7 +6,7 @@ const firestore_1 = require("../utils/firestore");
 const ensure_1 = require("../users/ensure");
 const energy_1 = require("../users/energy");
 const validation_1 = require("../shared/validation");
-exports.matchJoinInvite = (0, https_1.onCall)(async (req) => {
+exports.matchJoinInvite = (0, https_1.onCall)({ region: "europe-west1" }, async (req) => {
     const uid = req.auth?.uid;
     if (!uid)
         throw new https_1.HttpsError("unauthenticated", "Auth required.");

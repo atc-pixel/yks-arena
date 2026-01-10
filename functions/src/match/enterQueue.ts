@@ -14,7 +14,9 @@ const MATCH_QUEUE_COLLECTION = "match_queue";
 const MATCHES_COLLECTION = "matches";
 const USERS_COLLECTION = "users";
 
-export const matchEnterQueue = onCall(async (req) => {
+export const matchEnterQueue = onCall(
+  { region: "europe-west1" },
+  async (req) => {
   const uid = req.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Auth required.");
 

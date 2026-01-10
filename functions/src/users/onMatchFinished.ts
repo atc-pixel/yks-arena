@@ -73,7 +73,12 @@ function buildCategoryStatsUpdate(symbols: string[]): Record<string, FirebaseFir
 // MAIN TRIGGER
 // ============================================================================
 
-export const matchOnFinished = onDocumentUpdated("matches/{matchId}", async (event) => {
+export const matchOnFinished = onDocumentUpdated(
+  {
+    document: "matches/{matchId}",
+    region: "europe-west1",
+  },
+  async (event) => {
   const before = event.data?.before.data() as MatchDoc | undefined;
   const after = event.data?.after.data() as MatchDoc | undefined;
   if (!before || !after) return;

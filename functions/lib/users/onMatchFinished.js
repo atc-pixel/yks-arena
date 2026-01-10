@@ -44,7 +44,10 @@ function buildCategoryStatsUpdate(symbols) {
 // ============================================================================
 // MAIN TRIGGER
 // ============================================================================
-exports.matchOnFinished = (0, firestore_1.onDocumentUpdated)("matches/{matchId}", async (event) => {
+exports.matchOnFinished = (0, firestore_1.onDocumentUpdated)({
+    document: "matches/{matchId}",
+    region: "europe-west1",
+}, async (event) => {
     const before = event.data?.before.data();
     const after = event.data?.after.data();
     if (!before || !after)

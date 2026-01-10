@@ -13,7 +13,7 @@ const constants_1 = require("../shared/constants");
 const MATCH_QUEUE_COLLECTION = "match_queue";
 const MATCHES_COLLECTION = "matches";
 const USERS_COLLECTION = "users";
-exports.matchEnterQueue = (0, https_1.onCall)(async (req) => {
+exports.matchEnterQueue = (0, https_1.onCall)({ region: "europe-west1" }, async (req) => {
     const uid = req.auth?.uid;
     if (!uid)
         throw new https_1.HttpsError("unauthenticated", "Auth required.");
