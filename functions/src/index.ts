@@ -8,6 +8,8 @@ export { matchStartSyncDuelQuestion } from "./match/startSyncDuelQuestion";
 export { matchSubmitSyncDuelAnswer } from "./match/submitSyncDuelAnswer";
 export { matchTimeoutSyncDuelQuestion } from "./match/timeoutSyncDuelQuestion";
 export { matchBotAutoPlay } from "./match/botAutoPlay";
+export { matchGetServerTime } from "./match/getServerTime";
+export { matchFinalizeSyncDuelDecision } from "./match/finalizeSyncDuelDecision";
 
 // Matchmaking
 export { matchEnterQueue } from "./match/enterQueue";

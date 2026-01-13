@@ -35,6 +35,7 @@ export default function MatchPage() {
     match,
     loading,
     myUid,
+    nowMs,
     oppUid,
     syncDuel,
     currentQuestion,
@@ -92,7 +93,8 @@ export default function MatchPage() {
         correctAnswer: question.answer,
         isCorrect: myAnswer.isCorrect ?? false,
         earnedSymbol: null,
-        at: Date.now(),
+        // Render purity: Date.now() çağırma. Bu değer sadece local UI/reveal için kullanılıyor.
+        at: currentQuestion.serverStartAt,
       }
     : null;
 
@@ -111,7 +113,7 @@ export default function MatchPage() {
           </motion.button>
 
           {matchStatus === "QUESTION_ACTIVE" && questionStartAt && (
-            <RoundTimer roundStartAt={questionStartAt} />
+            <RoundTimer roundStartAt={questionStartAt} nowProvider={nowMs} />
           )}
         </div>
 

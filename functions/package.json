@@ -10,7 +10,9 @@
     "build": "rm -rf lib && tsc",
     "serve": "firebase emulators:start --only functions,firestore,auth",
     "deploy": "firebase deploy --only functions",
-    "seed": "node scripts/seedQuestions.js"
+    "seed": "node scripts/seedQuestions.js",
+    "seed:emulator": "node scripts/seedQuestions.js",
+    "seed:prod": "node scripts/seedQuestions_prod.js"
   },
   "dependencies": {
     "firebase-admin": "^12.0.0",

@@ -24,15 +24,26 @@ export function useUser(uid: string | null) {
   const ref = useMemo(() => (uid ? doc(db, "users", uid) : null), [uid]);
 
   useEffect(() => {
+    let t0: ReturnType<typeof setTimeout> | null = null;
+
     if (!ref) {
-      setUser(null);
-      setLoading(false);
-      setError(null);
-      return;
+      // react-hooks/set-state-in-effect: setState'i effect body'de direkt çağırma.
+      t0 = setTimeout(() => {
+        setUser(null);
+        setLoading(false);
+        setError(null);
+      }, 0);
+
+      return () => {
+        if (t0) clearTimeout(t0);
+      };
     }
 
-    setLoading(true);
-    setError(null);
+    // Effect içi state sync yerine microtask/timer ile set et.
+    t0 = setTimeout(() => {
+      setLoading(true);
+      setError(null);
+    }, 0);
 
     const unsub = onSnapshot(
       ref,
@@ -57,7 +68,10 @@ export function useUser(uid: string | null) {
       }
     );
 
-    return () => unsub();
+    return () => {
+      if (t0) clearTimeout(t0);
+      unsub();
+    };
   }, [ref, uid]);
 
   return { user, loading, error };

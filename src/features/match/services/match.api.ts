@@ -12,6 +12,8 @@ import {
   StartSyncDuelRoundInputSchema, // Still using same schema name for backward compatibility
   SubmitSyncDuelAnswerInputSchema,
   TimeoutSyncDuelQuestionInputSchema,
+  GetServerTimeInputSchema,
+  FinalizeSyncDuelDecisionInputSchema,
   type Category,
 } from "@/lib/validation/schemas";
 import { strictParse } from "@/lib/validation/utils";
@@ -42,6 +44,14 @@ export type TimeoutSyncDuelQuestionResponse = {
   success: boolean;
 };
 
+export type GetServerTimeResponse = {
+  serverTimeMs: number;
+};
+
+export type FinalizeSyncDuelDecisionResponse = {
+  success: boolean;
+};
+
 // Callable names (tek yerden yönetelim)
 const FN = {
   createInvite: "matchCreateInvite",
@@ -52,6 +62,8 @@ const FN = {
   startSyncDuelQuestion: "matchStartSyncDuelQuestion",
   submitSyncDuelAnswer: "matchSubmitSyncDuelAnswer",
   timeoutSyncDuelQuestion: "matchTimeoutSyncDuelQuestion",
+  getServerTime: "matchGetServerTime",
+  finalizeSyncDuelDecision: "matchFinalizeSyncDuelDecision",
 } as const;
 
 /**
@@ -152,6 +164,30 @@ export async function timeoutSyncDuelQuestion(matchId: string) {
   const fn = httpsCallable<{ matchId: string }, TimeoutSyncDuelQuestionResponse>(
     functions,
     FN.timeoutSyncDuelQuestion
+  );
+  const res = await fn(validated);
+  return res.data;
+}
+
+export async function getServerTime() {
+  // Input validation (empty object)
+  strictParse(GetServerTimeInputSchema, {}, "getServerTime");
+
+  const fn = httpsCallable<void, GetServerTimeResponse>(functions, FN.getServerTime);
+  const res = await fn();
+  return res.data;
+}
+
+export async function finalizeSyncDuelDecision(matchId: string) {
+  const validated = strictParse(
+    FinalizeSyncDuelDecisionInputSchema,
+    { matchId },
+    "finalizeSyncDuelDecision"
+  );
+
+  const fn = httpsCallable<{ matchId: string }, FinalizeSyncDuelDecisionResponse>(
+    functions,
+    FN.finalizeSyncDuelDecision
   );
   const res = await fn(validated);
   return res.data;

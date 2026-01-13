@@ -66,7 +66,7 @@ export default function ResultsPage() {
               href="/"
               className="inline-block rounded-xl border-4 border-black bg-lime-400 px-5 py-3 text-base font-black uppercase text-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-all hover:bg-lime-300 hover:shadow-[6px_6px_0px_0px_rgba(0,0,0,1)]"
             >
-              🏠 Lobby'ye dön
+              🏠 Lobby’ye dön
             </Link>
           </div>
         </div>
@@ -215,7 +215,7 @@ export default function ResultsPage() {
               href="/"
               className="inline-block w-full rounded-2xl border-4 border-black bg-lime-400 px-6 py-5 text-center text-base font-black uppercase tracking-wide text-black shadow-[10px_10px_0px_0px_rgba(0,0,0,1)] transition-all hover:bg-lime-300"
             >
-              🏠 Lobby'ye Dön
+              🏠 Lobby’ye Dön
             </Link>
           </motion.div>
         </div>

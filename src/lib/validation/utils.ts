@@ -10,10 +10,9 @@
  * - Bu sayede uygulama crash olmaz, sadece o data null olur
  */
 
-import { z } from "zod";
 // FIX: ZodSchema yerine ZodType kullanıyoruz. 
 // ZodSchema<T> kullanırsak Input = Output varsayar. Transform olan şemalarda bu patlar.
-import type { ZodType } from "zod";
+import type { ZodType, ZodTypeDef } from "zod";
 
 /**
  * Safe parse wrapper - error handling ile
@@ -24,7 +23,7 @@ import type { ZodType } from "zod";
  */
 export function safeParse<T>(
   // ZodType<Output, Def, Input> -> Input (3. parametre) any olabilir, sadece Output (T) önemli
-  schema: ZodType<T, any, any>,
+  schema: ZodType<T, ZodTypeDef, unknown>,
   data: unknown,
   context?: string
 ): T | null {
@@ -63,7 +62,7 @@ export function safeParse<T>(
  */
 export function strictParse<T>(
   // Burada da aynı fix: Input tipi Output'tan farklı olabilir
-  schema: ZodType<T, any, any>,
+  schema: ZodType<T, ZodTypeDef, unknown>,
   data: unknown,
   context?: string
 ): T {

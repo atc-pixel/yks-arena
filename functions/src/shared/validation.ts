@@ -56,6 +56,14 @@ export const TimeoutSyncDuelQuestionInputSchema = z.object({
   matchId: z.string().min(1),
 });
 
+// Time Sync schema (empty input)
+export const GetServerTimeInputSchema = z.object({});
+
+// Sync Duel decision finalize (cleanup fallback)
+export const FinalizeSyncDuelDecisionInputSchema = z.object({
+  matchId: z.string().min(1),
+});
+
 // ============================================================================
 // TYPE EXPORTS
 // ============================================================================
@@ -68,6 +76,8 @@ export type LeaveQueueInput = z.infer<typeof LeaveQueueInputSchema>;
 export type StartSyncDuelRoundInput = z.infer<typeof StartSyncDuelRoundInputSchema>;
 export type SubmitSyncDuelAnswerInput = z.infer<typeof SubmitSyncDuelAnswerInputSchema>;
 export type TimeoutSyncDuelQuestionInput = z.infer<typeof TimeoutSyncDuelQuestionInputSchema>;
+export type GetServerTimeInput = z.infer<typeof GetServerTimeInputSchema>;
+export type FinalizeSyncDuelDecisionInput = z.infer<typeof FinalizeSyncDuelDecisionInputSchema>;
 
 /**
  * Strict parse - error fırlatır (API input validation için)

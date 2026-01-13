@@ -8,6 +8,8 @@ import type {
   SyncDuelQuestion,
 } from "../shared/types";
 
+const GRACE_MS = 300;
+
 // Deterministic hash function (retry-safe, Math.random yok)
 export function hashStringToInt(input: string): number {
   let h = 0;
@@ -86,39 +88,91 @@ export async function applySyncDuelAnswerTx(params: {
   const [uid1, uid2] = match.players;
 
   if (isCorrect) {
+    // Grace window (lag compensation):
+    // - İlk doğru cevap -> pending set et, kararı hemen verme.
+    // - İkinci doğru cevap grace window içinde gelirse bu TX içinde kararı ver.
+    // - İkinci doğru çok geç gelirse pendingWinnerUid kazanır (bu TX içinde finalize eder).
+
+    const pendingWinnerUid = (currentQuestion as SyncDuelQuestion).pendingWinnerUid ?? null;
+    const decisionAt = (currentQuestion as SyncDuelQuestion).decisionAt ?? null;
+
+    // 1) First correct -> set pending and keep QUESTION_ACTIVE
+    if (!pendingWinnerUid) {
+      const updatedQuestions = [...syncDuel.questions];
+      updatedQuestions[syncDuel.currentQuestionIndex] = {
+        ...updatedQuestion,
+        pendingWinnerUid: uid,
+        decisionAt: serverReceiveAt + GRACE_MS,
+        endedReason: null,
+        endedAt: null,
+      };
+
+      tx.update(matchRef, {
+        "syncDuel.questions": updatedQuestions,
+      });
+      return;
+    }
+
+    // 2) Second correct -> decide now if within grace, otherwise pending wins
+    const inGrace = typeof decisionAt === "number" ? serverReceiveAt < decisionAt : false;
+
+    const pendingAns = updatedAnswers[pendingWinnerUid];
+    const pendingReceiveAt = pendingAns?.serverReceiveAt ?? null;
+    const pendingClientElapsedMs = pendingAns?.clientElapsedMs ?? null;
+
+    let winnerUid = pendingWinnerUid;
+    if (inGrace && pendingReceiveAt !== null) {
+      // primary: serverReceiveAt
+      if (serverReceiveAt < pendingReceiveAt) {
+        winnerUid = uid;
+      } else if (serverReceiveAt === pendingReceiveAt) {
+        // tie-breaker: clientElapsedMs (best-effort, untrusted)
+        const a = pendingClientElapsedMs;
+        const b = clientElapsedMs;
+        const aOk = typeof a === "number" && a >= 0 && a <= 60000;
+        const bOk = typeof b === "number" && b >= 0 && b <= 60000;
+        if (aOk && bOk) {
+          winnerUid = b < a ? uid : pendingWinnerUid;
+        }
+      }
+    }
+
     const kupaAwarded = calcKupaForCorrectAnswer({
       matchId,
       questionId: currentQuestion.questionId,
-      uid,
+      uid: winnerUid,
     });
 
-    const currentTrophies = match.stateByUid[uid]?.trophies ?? 0;
+    const currentTrophies = match.stateByUid[winnerUid]?.trophies ?? 0;
     const updatedCorrectCounts = { ...syncDuel.correctCounts };
-    updatedCorrectCounts[uid] = (updatedCorrectCounts[uid] ?? 0) + 1;
+    updatedCorrectCounts[winnerUid] = (updatedCorrectCounts[winnerUid] ?? 0) + 1;
 
     const updatedRoundWins = { ...(syncDuel.roundWins ?? {}) };
-    updatedRoundWins[uid] = (updatedRoundWins[uid] ?? 0) + 1;
+    updatedRoundWins[winnerUid] = (updatedRoundWins[winnerUid] ?? 0) + 1;
 
     let matchStatus: SyncDuelMatchStatus = "QUESTION_RESULT";
     let finalWinnerUid: string | undefined;
 
-    if (updatedCorrectCounts[uid] >= 3) {
+    if (updatedCorrectCounts[winnerUid] >= 3) {
       matchStatus = "MATCH_FINISHED";
-      finalWinnerUid = uid;
+      finalWinnerUid = winnerUid;
     }
 
-    updatedQuestion.endedReason = "CORRECT";
-    updatedQuestion.endedAt = serverReceiveAt;
-
     const updatedQuestions = [...syncDuel.questions];
-    updatedQuestions[syncDuel.currentQuestionIndex] = updatedQuestion;
+    updatedQuestions[syncDuel.currentQuestionIndex] = {
+      ...updatedQuestion,
+      endedReason: "CORRECT",
+      endedAt: serverReceiveAt,
+      pendingWinnerUid: null,
+      decisionAt: null,
+    };
 
     tx.update(matchRef, {
       "syncDuel.questions": updatedQuestions,
       "syncDuel.correctCounts": updatedCorrectCounts,
       "syncDuel.roundWins": updatedRoundWins,
       "syncDuel.matchStatus": matchStatus,
-      [`stateByUid.${uid}.trophies`]: currentTrophies + kupaAwarded,
+      [`stateByUid.${winnerUid}.trophies`]: currentTrophies + kupaAwarded,
       ...(finalWinnerUid !== undefined && { winnerUid: finalWinnerUid }),
       ...(matchStatus === "MATCH_FINISHED" && { status: "FINISHED" }),
     });

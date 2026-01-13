@@ -58,7 +58,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.weeklyReset = weeklyReset;
 const firestore_1 = require("../utils/firestore");
 const league_1 = require("../shared/types/league");
-const weeklyReset_helpers_1 = require("./weeklyReset.helpers");
+const weeklyReset_helpers_1 = require("./weeklyReset.utils");
 /**
  * Process a single bucket for weekly reset
  *

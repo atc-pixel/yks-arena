@@ -37,7 +37,7 @@ export function PromotionInfo({ promotionInfo }: PromotionInfoProps) {
             <div>
               <div className="font-black uppercase text-black">Terfi Hakkı Kazandın! 🚀</div>
               <div className="mt-1 text-sm font-bold text-black/80">
-                İlk 5'te olduğun için yukarı lige çıkacaksın.
+                İlk 5’te olduğun için yukarı lige çıkacaksın.
               </div>
             </div>
           </div>
@@ -51,7 +51,7 @@ export function PromotionInfo({ promotionInfo }: PromotionInfoProps) {
             <div>
               <div className="font-black uppercase text-black">Düşme Riski! ⚠️</div>
               <div className="mt-1 text-sm font-bold text-black/80">
-                Son 5'te olduğun için aşağı lige düşeceksin.
+                Son 5’te olduğun için aşağı lige düşeceksin.
               </div>
             </div>
           </div>
@@ -65,7 +65,7 @@ export function PromotionInfo({ promotionInfo }: PromotionInfoProps) {
             <div>
               <div className="font-black uppercase text-black">Teneke Lige Gidiyorsun! 📦</div>
               <div className="mt-1 text-sm font-bold text-black/80">
-                0 kupa ile tüm liglerden Teneke'ye düşülür.
+                0 kupa ile tüm liglerden Teneke’ye düşülür.
               </div>
             </div>
           </div>

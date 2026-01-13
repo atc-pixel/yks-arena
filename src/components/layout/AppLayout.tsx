@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Home, Trophy, User as UserIcon, Zap } from "lucide-react";
 
@@ -27,11 +27,10 @@ export function AppLayout({ children, user, userLoading, userError }: Props) {
   const pathname = usePathname();
 
   const energy = user?.economy?.energy ?? 0;
-  const prevEnergyRef = useRef<number>(energy);
-
-  const energyChanged = prevEnergyRef.current !== energy;
+  const [prevEnergy, setPrevEnergy] = useState<number>(energy);
+  const energyChanged = prevEnergy !== energy;
   useEffect(() => {
-    prevEnergyRef.current = energy;
+    setPrevEnergy(energy);
   }, [energy]);
 
   const navItems = useMemo(

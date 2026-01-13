@@ -14,6 +14,7 @@ import {
   startSyncDuelQuestion,
   submitSyncDuelAnswer,
   timeoutSyncDuelQuestion,
+  finalizeSyncDuelDecision,
 } from "@/features/match/services/match.api";
 import type { ChoiceKey } from "@/lib/validation/schemas";
 
@@ -67,6 +68,20 @@ export function useTimeoutSyncDuelQuestionMutation() {
     mutationFn: (matchId: string) => timeoutSyncDuelQuestion(matchId),
     onSuccess: (data, matchId) => {
       // Match cache'ini invalidate et (QUESTION_RESULT update'i için)
+      queryClient.invalidateQueries({ queryKey: ["match", matchId] });
+    },
+  });
+}
+
+/**
+ * Finalize sync duel decision mutation (cleanup fallback)
+ */
+export function useFinalizeSyncDuelDecisionMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (matchId: string) => finalizeSyncDuelDecision(matchId),
+    onSuccess: (data, matchId) => {
       queryClient.invalidateQueries({ queryKey: ["match", matchId] });
     },
   });

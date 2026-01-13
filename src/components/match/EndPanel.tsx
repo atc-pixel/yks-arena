@@ -68,7 +68,7 @@ export function EndPanel({
         onClick={onReturn}
         className="mt-6 w-full rounded-xl border-4 border-black bg-lime-400 px-5 py-4 text-base font-black uppercase tracking-wide text-black shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] transition-all hover:bg-lime-300 hover:shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]"
       >
-        🏠 Lobby'ye Dön
+        🏠 Lobby’ye Dön
       </motion.button>
     </motion.section>
   );

@@ -145,6 +145,8 @@ export const matchStartSyncDuelQuestion = onCall(
         },
         endedReason: null,
         endedAt: null,
+        pendingWinnerUid: null,
+        decisionAt: null,
       };
 
       // Update match

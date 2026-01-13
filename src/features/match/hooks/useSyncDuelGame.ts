@@ -16,30 +16,44 @@ import { useRouter } from "next/navigation";
 import { auth } from "@/lib/firebase/client";
 import { useMatch } from "@/features/match/hooks/useMatch.rq";
 import { useQuestion } from "@/features/match/hooks/useQuestion.rq";
+import { useServerClock } from "@/features/match/hooks/useServerClock";
 import {
   useStartSyncDuelQuestionMutation,
   useSubmitSyncDuelAnswerMutation,
   useTimeoutSyncDuelQuestionMutation,
-} from "@/features/match/hooks/useMatchMutations";
+  useFinalizeSyncDuelDecisionMutation,
+} from "@/features/match/hooks/useMatchMutations.rq";
 import type { ChoiceKey, MatchDoc } from "@/lib/validation/schemas";
 
 export function useSyncDuelGame(matchId: string) {
   const router = useRouter();
   const { match, loading } = useMatch(matchId);
   const myUid = auth.currentUser?.uid ?? null;
+  const clock = useServerClock();
+  const nowMs = clock.nowMs;
 
   // Client-side timing (performance.now() - monotonic)
   const questionStartTimeRef = useRef<number | null>(null); // performance.now() değeri
   const timeoutTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const timeoutRequestedForQuestionIdRef = useRef<string | null>(null);
+  const finalizeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const finalizeRequestedKeyRef = useRef<string | null>(null);
   const autoStartKeyRef = useRef<string | null>(null);
 
   // Mutations
   const startQuestionMutation = useStartSyncDuelQuestionMutation();
   const submitAnswerMutation = useSubmitSyncDuelAnswerMutation();
   const timeoutQuestionMutation = useTimeoutSyncDuelQuestionMutation();
+  const finalizeDecisionMutation = useFinalizeSyncDuelDecisionMutation();
 
-  const [error, setError] = useState<string | null>(null);
+  const [localError, setLocalError] = useState<string | null>(null);
+
+  // UI error: local (actions) + critical mutation errors (auto-flow dahil)
+  const error =
+    localError ??
+    startQuestionMutation.error?.message ??
+    submitAnswerMutation.error?.message ??
+    null;
 
   // Derived state
   const players = (match?.players ?? []) as string[];
@@ -81,27 +95,72 @@ export function useSyncDuelGame(matchId: string) {
     }
   }, [match?.status, matchId, router]);
 
-  // Error handling from mutations
+  // Non-critical errors (idempotency / multi-client race) - sadece dev'de log
   useEffect(() => {
-    if (startQuestionMutation.error) setError(startQuestionMutation.error.message);
-    if (submitAnswerMutation.error) setError(submitAnswerMutation.error.message);
+    if (process.env.NODE_ENV !== "development") return;
     if (timeoutQuestionMutation.error) {
-      // Non-critical (idempotent / multi-client race), show only dev
-      if (process.env.NODE_ENV === "development") {
-        console.warn("Timeout mutation error (non-critical):", timeoutQuestionMutation.error);
-      }
+      console.warn("Timeout mutation error (non-critical):", timeoutQuestionMutation.error);
     }
-  }, [startQuestionMutation.error, submitAnswerMutation.error, timeoutQuestionMutation.error]);
+    if (finalizeDecisionMutation.error) {
+      console.warn("Finalize mutation error (non-critical):", finalizeDecisionMutation.error);
+    }
+  }, [timeoutQuestionMutation.error, finalizeDecisionMutation.error]);
+
+  // Grace decision cleanup watcher:
+  // - İlk doğru cevap geldiğinde question pending'e düşer (pendingWinnerUid + decisionAt).
+  // - 2. doğru grace içinde gelmezse, decisionAt sonrası finalize callable ile temizle.
+  useEffect(() => {
+    if (finalizeTimerRef.current) {
+      clearTimeout(finalizeTimerRef.current);
+      finalizeTimerRef.current = null;
+    }
+
+    if (!currentQuestion || matchStatus !== "QUESTION_ACTIVE") {
+      finalizeRequestedKeyRef.current = null;
+      return;
+    }
+
+    const pendingWinnerUid = currentQuestion.pendingWinnerUid ?? null;
+    const decisionAt = currentQuestion.decisionAt ?? null;
+    if (!pendingWinnerUid || typeof decisionAt !== "number") {
+      finalizeRequestedKeyRef.current = null;
+      return;
+    }
+
+    const key = `${currentQuestion.questionId}:${decisionAt}`;
+    if (finalizeRequestedKeyRef.current === key) return;
+
+    const delayMs = Math.max(0, decisionAt - nowMs());
+    finalizeTimerRef.current = setTimeout(() => {
+      finalizeRequestedKeyRef.current = key;
+      finalizeDecisionMutation.mutate(matchId);
+    }, delayMs + 10); // küçük buffer: decisionAt'e çok yakın çağrılarda precondition riski azalır
+
+    return () => {
+      if (finalizeTimerRef.current) {
+        clearTimeout(finalizeTimerRef.current);
+        finalizeTimerRef.current = null;
+      }
+    };
+  }, [
+    currentQuestion?.questionId,
+    currentQuestion?.pendingWinnerUid,
+    currentQuestion?.decisionAt,
+    matchStatus,
+    matchId,
+    nowMs,
+    finalizeDecisionMutation,
+  ]);
 
   // Reload fallback: QUESTION_ACTIVE iken ref boşsa (sayfa yenilendi), tahmini start time üret
   useEffect(() => {
     if (!currentQuestion || matchStatus !== "QUESTION_ACTIVE") return;
     if (questionStartTimeRef.current !== null) return;
 
-    const serverElapsedMs = Math.max(0, Date.now() - currentQuestion.serverStartAt);
+    const serverElapsedMs = Math.max(0, nowMs() - currentQuestion.serverStartAt);
     // performance.now() bazını Date.now() ile karıştırmıyoruz; sadece fark için kullanıyoruz.
     questionStartTimeRef.current = performance.now() - serverElapsedMs;
-  }, [currentQuestion?.questionId, matchStatus, currentQuestion?.serverStartAt]);
+  }, [currentQuestion?.questionId, matchStatus, currentQuestion?.serverStartAt, nowMs]);
 
   // 60 saniye timeout timer
   useEffect(() => {
@@ -121,7 +180,7 @@ export function useSyncDuelGame(matchId: string) {
     }
 
     // Calculate remaining time
-    const elapsedMs = Date.now() - currentQuestion.serverStartAt;
+    const elapsedMs = nowMs() - currentQuestion.serverStartAt;
     const remainingMs = Math.max(0, 60000 - elapsedMs);
 
     if (remainingMs > 0) {
@@ -146,7 +205,7 @@ export function useSyncDuelGame(matchId: string) {
         timeoutTimerRef.current = null;
       }
     };
-  }, [currentQuestion?.questionId, currentQuestion?.serverStartAt, matchStatus, matchId, timeoutQuestionMutation]);
+  }, [currentQuestion?.questionId, currentQuestion?.serverStartAt, matchStatus, matchId, timeoutQuestionMutation, nowMs]);
 
   // Auto-flow: Butonsuz akış
   // - İlk soru: WAITING_PLAYERS + currentQuestionIndex === -1 → kısa gecikmeyle auto start
@@ -191,7 +250,7 @@ export function useSyncDuelGame(matchId: string) {
   const startQuestion = async () => {
     if (!canStartQuestion || startQuestionMutation.isPending) return;
 
-    setError(null);
+    setLocalError(null);
 
     try {
       const result = await startQuestionMutation.mutateAsync(matchId);
@@ -200,19 +259,19 @@ export function useSyncDuelGame(matchId: string) {
       questionStartTimeRef.current = performance.now();
     } catch (e) {
       const errorMsg = e instanceof Error ? e.message : "Soru başlatılamadı";
-      setError(errorMsg);
+      setLocalError(errorMsg);
     }
   };
 
   const submitAnswer = async (answer: ChoiceKey) => {
     if (!canAnswer || !currentQuestion || submitAnswerMutation.isPending) return;
 
-    setError(null);
+    setLocalError(null);
 
     try {
       if (questionStartTimeRef.current === null) {
         // Reload / edge-case: ref yoksa tahmini başlat
-        const serverElapsedMs = Math.max(0, Date.now() - currentQuestion.serverStartAt);
+        const serverElapsedMs = Math.max(0, nowMs() - currentQuestion.serverStartAt);
         questionStartTimeRef.current = performance.now() - serverElapsedMs;
       }
 
@@ -233,7 +292,7 @@ export function useSyncDuelGame(matchId: string) {
       questionStartTimeRef.current = null;
     } catch (e) {
       const errorMsg = e instanceof Error ? e.message : "Cevap gönderilemedi";
-      setError(errorMsg);
+      setLocalError(errorMsg);
     }
   };
 
@@ -244,6 +303,8 @@ export function useSyncDuelGame(matchId: string) {
     match,
     loading,
     myUid,
+    nowMs,
+    clock,
     oppUid,
     syncDuel,
     currentQuestion,

@@ -19,11 +19,11 @@ import {
   useJoinInviteMutation,
   useCancelInviteMutation,
   useAutoRedirectOnJoin,
-} from "@/features/match/hooks/useInviteMutations";
+} from "@/features/match/hooks/useInviteMutations.rq";
 import {
   useEnterQueueMutation,
   useLeaveQueueMutation,
-} from "@/features/match/hooks/useMatchmakingMutations";
+} from "@/features/match/hooks/useMatchmakingMutations.rq";
 
 export function useHomePageLogic() {
   // Auth

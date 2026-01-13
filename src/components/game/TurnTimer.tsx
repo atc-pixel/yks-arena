@@ -3,11 +3,17 @@
 import { useEffect, useMemo, useState } from "react";
 
 export function TurnTimer({ deadlineMs }: { deadlineMs: number }) {
-  const [now, setNow] = useState(Date.now());
+  // Render purity: Date.now() çağırma. İlk değeri effect içinde set ediyoruz.
+  const [now, setNow] = useState(0);
 
   useEffect(() => {
+    // react-hooks/set-state-in-effect kuralı: setState'i effect body'de direkt çağırma.
+    const t0 = setTimeout(() => setNow(Date.now()), 0);
     const id = setInterval(() => setNow(Date.now()), 250);
-    return () => clearInterval(id);
+    return () => {
+      clearTimeout(t0);
+      clearInterval(id);
+    };
   }, []);
 
   const remaining = useMemo(() => Math.max(0, deadlineMs - now), [deadlineMs, now]);

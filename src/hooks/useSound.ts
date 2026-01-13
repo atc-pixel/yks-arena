@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef } from "react";
+import { useEffect, useRef } from "react";
 
 type SoundName = "click" | "correct" | "wrong" | "spin" | "win";
 
@@ -48,7 +48,7 @@ export function useSound() {
   const audioRef = useRef<AudioMap>({});
 
   // Lazily create audios only once on client
-  useMemo(() => {
+  useEffect(() => {
     if (typeof window === "undefined") return;
 
     const map: Partial<Record<SoundName, string>> = {

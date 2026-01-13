@@ -67,6 +67,13 @@ export type SyncDuelQuestion = {
   answers: Record<string, SyncDuelQuestionAnswer>;
   endedReason: "CORRECT" | "TWO_WRONG" | "TIMEOUT" | null; // Soru nasıl bitti
   endedAt: number | null; // Soru bittiğinde
+  /**
+   * Grace window (lag compensation) için pending karar state'i.
+   * - İlk doğru cevap geldiğinde set edilir.
+   * - decisionAt gelince finalize edilir (ya 2. doğru ile submitAnswer içinde, ya finalize callable ile).
+   */
+  pendingWinnerUid?: string | null;
+  decisionAt?: number | null; // server ms
 };
 
 export type SyncDuelMatchStatus = "WAITING_PLAYERS" | "QUESTION_ACTIVE" | "QUESTION_RESULT" | "MATCH_FINISHED";

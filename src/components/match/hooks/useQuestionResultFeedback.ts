@@ -93,10 +93,5 @@ export function useQuestionResultFeedback({
   useEffect(() => {
     playedResultRef.current = null;
   }, [activeQuestionId]);
-
-  return {
-    // Expose ref for external tracking if needed
-    playedResultKey: playedResultRef.current,
-  };
 }
 

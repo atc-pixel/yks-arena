@@ -125,6 +125,8 @@ export const SyncDuelQuestionSchema = z.object({
   answers: z.record(z.string(), SyncDuelQuestionAnswerSchema),
   endedReason: z.enum(["CORRECT", "TWO_WRONG", "TIMEOUT"]).nullable(),
   endedAt: z.number().nullable(),
+  pendingWinnerUid: z.string().nullable().optional(),
+  decisionAt: z.number().nullable().optional(),
 });
 
 export const SyncDuelMatchStatusSchema = z.enum(["WAITING_PLAYERS", "QUESTION_ACTIVE", "QUESTION_RESULT", "MATCH_FINISHED"]);
@@ -232,6 +234,14 @@ export const SubmitSyncDuelAnswerInputSchema = z.object({
 
 // Sync Duel timeout (QUESTION_ACTIVE 60s dolunca)
 export const TimeoutSyncDuelQuestionInputSchema = z.object({
+  matchId: z.string().min(1),
+});
+
+// Time Sync (empty input)
+export const GetServerTimeInputSchema = z.object({});
+
+// Sync Duel decision finalize (cleanup fallback)
+export const FinalizeSyncDuelDecisionInputSchema = z.object({
   matchId: z.string().min(1),
 });
 

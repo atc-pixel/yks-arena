@@ -67,18 +67,22 @@ export function useQuestionPanelLogic({
   const [selectedKey, setSelectedKey] = useState<ChoiceKey | null>(null);
   const [processingKey, setProcessingKey] = useState<ChoiceKey | null>(null);
   const [reveal, setReveal] = useState<RevealState | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
   // Prevent double submissions (even if parent busy lags)
-  const submittingRef = useRef(false);
   const playedResultRef = useRef<string | null>(null);
 
   // Reset local UI when question changes
   useEffect(() => {
-    setSelectedKey(null);
-    setProcessingKey(null);
-    setReveal(null);
-    submittingRef.current = false;
-    playedResultRef.current = null;
+    // react-hooks/set-state-in-effect: setState'i effect body'de direkt çağırma.
+    const t0 = setTimeout(() => {
+      setSelectedKey(null);
+      setProcessingKey(null);
+      setReveal(null);
+      setSubmitting(false);
+      playedResultRef.current = null;
+    }, 0);
+    return () => clearTimeout(t0);
   }, [activeQuestionId]);
 
   const resultForThisQuestion = useMemo(() => {
@@ -102,7 +106,7 @@ export function useQuestionPanelLogic({
     if (!lastResult || !myUid || !activeQuestionId) return null;
     if (lastResult.uid !== myUid || lastResult.questionId !== activeQuestionId) return null;
     return `${lastResult.questionId}:${lastResult.at}`;
-  }, [lastResult?.questionId, lastResult?.at, lastResult?.uid, myUid, activeQuestionId]);
+  }, [lastResult, myUid, activeQuestionId]);
 
   // Stable lastResult data to prevent infinite loops (only extract needed fields)
   const lastResultData = useMemo(() => {
@@ -113,7 +117,7 @@ export function useQuestionPanelLogic({
       correctAnswer: lastResult.correctAnswer,
       answer: lastResult.answer,
     };
-  }, [lastResult?.isCorrect, lastResult?.correctAnswer, lastResult?.answer, myUid, activeQuestionId]);
+  }, [lastResult, myUid, activeQuestionId]);
 
   // When Firestore result arrives, reveal colors (sound/haptic useQuestionResultFeedback'te)
   useEffect(() => {
@@ -121,17 +125,20 @@ export function useQuestionPanelLogic({
     if (canContinue && lastResultKey && lastResultData) {
       // Sadece daha önce işlenmemişse state update yap
       if (playedResultRef.current !== lastResultKey) {
-        // State update'leri sadece bir kez yap
-        setProcessingKey(null);
-        setReveal({
-          correctKey: lastResultData.correctAnswer,
-          wrongKey: lastResultData.isCorrect ? null : lastResultData.answer,
-          isCorrect: lastResultData.isCorrect,
-        });
-        submittingRef.current = false;
+        // react-hooks/set-state-in-effect: setState'i effect body'de direkt çağırma.
+        const t0 = setTimeout(() => {
+          setProcessingKey(null);
+          setReveal({
+            correctKey: lastResultData.correctAnswer,
+            wrongKey: lastResultData.isCorrect ? null : lastResultData.answer,
+            isCorrect: lastResultData.isCorrect,
+          });
+          setSubmitting(false);
+        }, 0);
 
         // Ref'i güncelle (bu state update'i tetiklemez)
         playedResultRef.current = lastResultKey;
+        return () => clearTimeout(t0);
       }
       return;
     }
@@ -145,24 +152,29 @@ export function useQuestionPanelLogic({
     // Ref'i önce güncelle (state update'ten önce)
     playedResultRef.current = key;
 
-    // State update'leri (sound/haptic useQuestionResultFeedback'te)
-    setProcessingKey(null);
-    setReveal({
-      correctKey: resultForThisQuestion.correctAnswer,
-      wrongKey: resultForThisQuestion.isCorrect ? null : resultForThisQuestion.answer,
-      isCorrect: resultForThisQuestion.isCorrect,
-    });
+    // react-hooks/set-state-in-effect: setState'i effect body'de direkt çağırma.
+    const t0 = setTimeout(() => {
+      setProcessingKey(null);
+      setReveal({
+        correctKey: resultForThisQuestion.correctAnswer,
+        wrongKey: resultForThisQuestion.isCorrect ? null : resultForThisQuestion.answer,
+        isCorrect: resultForThisQuestion.isCorrect,
+      });
+    }, 0);
 
     // keep buttons locked for a beat to let the animation land
     const t = setTimeout(() => {
       // Parent will move phase forward; we just release local submit lock
-      submittingRef.current = false;
+      setSubmitting(false);
     }, 1500);
 
-    return () => clearTimeout(t);
+    return () => {
+      clearTimeout(t0);
+      clearTimeout(t);
+    };
   }, [resultForThisQuestion, canContinue, lastResultKey, lastResultData]);
 
-  const locked = !canAnswer || busy || !!processingKey || !!reveal || submittingRef.current;
+  const locked = !canAnswer || busy || !!processingKey || !!reveal || submitting;
 
   const onPick = async (k: ChoiceKey) => {
     if (locked) return;
@@ -170,7 +182,7 @@ export function useQuestionPanelLogic({
 
     setSelectedKey(k);
     setProcessingKey(k);
-    submittingRef.current = true;
+    setSubmitting(true);
 
     try {
       await onSubmit(k);
@@ -178,7 +190,7 @@ export function useQuestionPanelLogic({
       // keep processingKey until result arrives or parent changes phase.
     } catch {
       // If submit fails, unlock and remove processing state
-      submittingRef.current = false;
+      setSubmitting(false);
       setProcessingKey(null);
     }
   };

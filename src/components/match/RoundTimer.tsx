@@ -18,20 +18,22 @@ type Props = {
   roundStartAt: number | null; // serverStartAt (milliseconds)
   durationMs?: number; // Round süresi (default: 60 saniye)
   onTimeout?: () => void;
+  nowProvider?: () => number; // server-synced now provider (optional)
 };
 
-export function RoundTimer({ roundStartAt, durationMs = 60000, onTimeout }: Props) {
-  const [now, setNow] = useState(() => Date.now());
+export function RoundTimer({ roundStartAt, durationMs = 60000, onTimeout, nowProvider }: Props) {
+  const getNow = nowProvider ?? Date.now;
+  const [now, setNow] = useState(() => getNow());
 
   useEffect(() => {
     if (!roundStartAt) return;
 
     const interval = setInterval(() => {
-      setNow(Date.now());
+      setNow(getNow());
     }, 100); // 100ms güncelle
 
     return () => clearInterval(interval);
-  }, [roundStartAt]);
+  }, [roundStartAt, getNow]);
 
   const remainingMs = useMemo(() => {
     if (!roundStartAt) return null;

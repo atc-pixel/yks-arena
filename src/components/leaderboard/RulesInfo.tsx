@@ -29,7 +29,7 @@ export function RulesInfo() {
         </li>
         <li className="flex items-start gap-2">
           <span className="text-black">•</span>
-          <span>0 kupa: Tüm liglerden Teneke'ye düşülür</span>
+          <span>0 kupa: Tüm liglerden Teneke’ye düşülür</span>
         </li>
         <li className="flex items-start gap-2">
           <span className="text-black">•</span>

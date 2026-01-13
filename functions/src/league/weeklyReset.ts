@@ -40,7 +40,7 @@ import {
   createClaimableReward,
   generateNextSeasonId,
   resetUserWeeklyTrophies,
-} from "./weeklyReset.helpers";
+} from "./weeklyReset.utils";
 
 // ============================================================================
 // TYPES
