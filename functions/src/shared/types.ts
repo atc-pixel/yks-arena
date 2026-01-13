@@ -58,6 +58,11 @@ export type SyncDuelQuestionAnswer = {
   choice: ChoiceKey | null; // null = henüz cevap vermedi
   isCorrect: boolean | null; // null = henüz hesaplanmadı
   clientElapsedMs: number | null; // Client-side timing (UX için)
+  /**
+   * Client'ın ölçtüğü yaklaşık latency (RTT/2 median).
+   * Untrusted hint: sadece fairness için capped şekilde kullanılmalı.
+   */
+  clientLatencyMs?: number | null;
   serverReceiveAt: number | null; // Server timestamp (ms)
 };
 

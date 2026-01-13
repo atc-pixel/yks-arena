@@ -9,6 +9,16 @@ import type {
 } from "../shared/types";
 
 const GRACE_MS = 300;
+const LATENCY_CAP_MS = 200;
+
+function clamp(n: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, n));
+}
+
+function capClientLatencyMs(latencyMs: unknown): number {
+  if (typeof latencyMs !== "number" || !Number.isFinite(latencyMs)) return 0;
+  return clamp(Math.round(latencyMs), 0, LATENCY_CAP_MS);
+}
 
 // Deterministic hash function (retry-safe, Math.random yok)
 export function hashStringToInt(input: string): number {
@@ -40,9 +50,10 @@ export async function applySyncDuelAnswerTx(params: {
   uid: string;
   answer: ChoiceKey;
   clientElapsedMs: number;
+  clientLatencyMs?: number | null;
   serverReceiveAt: number;
 }): Promise<void> {
-  const { tx, matchRef, matchId, match, uid, answer, clientElapsedMs, serverReceiveAt } = params;
+  const { tx, matchRef, matchId, match, uid, answer, clientElapsedMs, clientLatencyMs, serverReceiveAt } = params;
 
   if (match.mode !== "SYNC_DUEL") throw new HttpsError("failed-precondition", "Not a sync duel match");
   if (match.status !== "ACTIVE") throw new HttpsError("failed-precondition", "Match not active");
@@ -76,6 +87,7 @@ export async function applySyncDuelAnswerTx(params: {
       choice: answer,
       isCorrect,
       clientElapsedMs,
+      clientLatencyMs: typeof clientLatencyMs === "number" ? clientLatencyMs : null,
       serverReceiveAt,
     },
   };
@@ -120,13 +132,17 @@ export async function applySyncDuelAnswerTx(params: {
     const pendingAns = updatedAnswers[pendingWinnerUid];
     const pendingReceiveAt = pendingAns?.serverReceiveAt ?? null;
     const pendingClientElapsedMs = pendingAns?.clientElapsedMs ?? null;
+    const pendingClientLatencyMs = pendingAns?.clientLatencyMs ?? null;
 
     let winnerUid = pendingWinnerUid;
     if (inGrace && pendingReceiveAt !== null) {
-      // primary: serverReceiveAt
-      if (serverReceiveAt < pendingReceiveAt) {
+      // primary: effective receive time (serverReceiveAt - capped clientLatencyMs)
+      const pendingEffective = pendingReceiveAt - capClientLatencyMs(pendingClientLatencyMs);
+      const challengerEffective = serverReceiveAt - capClientLatencyMs(clientLatencyMs);
+
+      if (challengerEffective < pendingEffective) {
         winnerUid = uid;
-      } else if (serverReceiveAt === pendingReceiveAt) {
+      } else if (challengerEffective === pendingEffective) {
         // tie-breaker: clientElapsedMs (best-effort, untrusted)
         const a = pendingClientElapsedMs;
         const b = clientElapsedMs;

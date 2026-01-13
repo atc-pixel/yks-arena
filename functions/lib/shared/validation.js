@@ -43,6 +43,8 @@ exports.SubmitSyncDuelAnswerInputSchema = zod_1.z.object({
     roundId: zod_1.z.string().min(1),
     answer: exports.ChoiceKeySchema,
     clientElapsedMs: zod_1.z.number().min(0),
+    // Approx RTT/2 (median) from client; untrusted hint, backend will cap.
+    clientLatencyMs: zod_1.z.number().min(0).max(1000).nullable().optional(),
 });
 exports.TimeoutSyncDuelQuestionInputSchema = zod_1.z.object({
     matchId: zod_1.z.string().min(1),

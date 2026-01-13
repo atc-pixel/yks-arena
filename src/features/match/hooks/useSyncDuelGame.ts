@@ -279,6 +279,9 @@ export function useSyncDuelGame(matchId: string) {
       const submitTime = performance.now();
       const clientElapsedMs = submitTime - (questionStartTimeRef.current ?? submitTime);
 
+      // Ping/latency hint (best-effort, untrusted). Backend will cap.
+      const clientLatencyMs = typeof clock.latencyMs === "number" ? Math.max(0, Math.min(1000, clock.latencyMs)) : null;
+
       // roundId artık kullanılmıyor ama validation için hala gerekli (backward compatibility)
       // Backend'de ignore ediliyor, currentQuestionIndex kullanılıyor
       await submitAnswerMutation.mutateAsync({
@@ -286,6 +289,7 @@ export function useSyncDuelGame(matchId: string) {
         roundId: currentQuestion.questionId, // Temporary: using questionId as roundId for validation
         answer,
         clientElapsedMs,
+        clientLatencyMs,
       });
 
       // Reset question start time

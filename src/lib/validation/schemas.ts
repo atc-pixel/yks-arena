@@ -116,6 +116,7 @@ export const SyncDuelQuestionAnswerSchema = z.object({
   choice: ChoiceKeySchema.nullable(),
   isCorrect: z.boolean().nullable(),
   clientElapsedMs: z.number().nullable(),
+  clientLatencyMs: z.number().min(0).max(1000).nullable().optional(),
   serverReceiveAt: z.number().nullable(),
 });
 
@@ -231,6 +232,8 @@ export const SubmitSyncDuelAnswerInputSchema = z.object({
   roundId: z.string().min(1),
   answer: ChoiceKeySchema,
   clientElapsedMs: z.number().min(0),
+  // Approx RTT/2 (median) from useServerClock; untrusted hint, backend will cap.
+  clientLatencyMs: z.number().min(0).max(1000).nullable().optional(),
 });
 
 // Sync Duel timeout (QUESTION_ACTIVE 60s dolunca)

@@ -19,7 +19,7 @@ exports.matchSubmitSyncDuelAnswer = (0, https_1.onCall)({ region: constants_1.FU
     const uid = req.auth?.uid;
     if (!uid)
         throw new https_1.HttpsError("unauthenticated", "Auth required.");
-    const { matchId, roundId, answer, clientElapsedMs } = (0, validation_1.strictParse)(validation_1.SubmitSyncDuelAnswerInputSchema, req.data, "matchSubmitSyncDuelAnswer");
+    const { matchId, roundId, answer, clientElapsedMs, clientLatencyMs } = (0, validation_1.strictParse)(validation_1.SubmitSyncDuelAnswerInputSchema, req.data, "matchSubmitSyncDuelAnswer");
     const matchRef = firestore_1.db.collection("matches").doc(matchId);
     const serverReceiveAt = Date.now(); // Server timestamp
     await firestore_1.db.runTransaction(async (tx) => {
@@ -38,6 +38,7 @@ exports.matchSubmitSyncDuelAnswer = (0, https_1.onCall)({ region: constants_1.FU
                 uid,
                 answer,
                 clientElapsedMs,
+                clientLatencyMs: clientLatencyMs ?? null,
                 serverReceiveAt,
             });
         }

@@ -137,17 +137,18 @@ export async function submitSyncDuelAnswer(
   matchId: string,
   roundId: string,
   answer: string,
-  clientElapsedMs: number
+  clientElapsedMs: number,
+  clientLatencyMs?: number | null
 ) {
   // Input validation
   const validated = strictParse(
     SubmitSyncDuelAnswerInputSchema,
-    { matchId, roundId, answer, clientElapsedMs },
+    { matchId, roundId, answer, clientElapsedMs, clientLatencyMs: clientLatencyMs ?? null },
     "submitSyncDuelAnswer"
   );
   
   const fn = httpsCallable<
-    { matchId: string; roundId: string; answer: string; clientElapsedMs: number },
+    { matchId: string; roundId: string; answer: string; clientElapsedMs: number; clientLatencyMs?: number | null },
     SubmitSyncDuelAnswerResponse
   >(functions, FN.submitSyncDuelAnswer);
   const res = await fn(validated);

@@ -21,7 +21,7 @@ export const matchSubmitSyncDuelAnswer = onCall(
     const uid = req.auth?.uid;
     if (!uid) throw new HttpsError("unauthenticated", "Auth required.");
 
-    const { matchId, roundId, answer, clientElapsedMs } = strictParse(
+    const { matchId, roundId, answer, clientElapsedMs, clientLatencyMs } = strictParse(
       SubmitSyncDuelAnswerInputSchema,
       req.data,
       "matchSubmitSyncDuelAnswer"
@@ -45,6 +45,7 @@ export const matchSubmitSyncDuelAnswer = onCall(
           uid,
           answer,
           clientElapsedMs,
+          clientLatencyMs: clientLatencyMs ?? null,
           serverReceiveAt,
         });
       } catch (e) {

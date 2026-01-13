@@ -113,6 +113,7 @@ exports.matchBotAutoPlay = (0, firestore_1.onDocumentUpdated)({ document: "match
                 uid: botUid,
                 answer,
                 clientElapsedMs: delayMs,
+                clientLatencyMs: null,
                 serverReceiveAt,
             });
         });

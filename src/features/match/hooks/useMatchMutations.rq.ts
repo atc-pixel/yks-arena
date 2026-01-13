@@ -45,12 +45,14 @@ export function useSubmitSyncDuelAnswerMutation() {
       roundId,
       answer,
       clientElapsedMs,
+      clientLatencyMs,
     }: {
       matchId: string;
       roundId: string;
       answer: ChoiceKey;
       clientElapsedMs: number;
-    }) => submitSyncDuelAnswer(matchId, roundId, answer, clientElapsedMs),
+      clientLatencyMs?: number | null;
+    }) => submitSyncDuelAnswer(matchId, roundId, answer, clientElapsedMs, clientLatencyMs),
     onSuccess: (data, variables) => {
       // Match cache'ini invalidate et (cevap kaydedildi, round state güncellendi)
       queryClient.invalidateQueries({ queryKey: ["match", variables.matchId] });

@@ -125,6 +125,7 @@ export const matchBotAutoPlay = onDocumentUpdated(
           uid: botUid,
           answer,
           clientElapsedMs: delayMs,
+          clientLatencyMs: null,
           serverReceiveAt,
         });
       });

@@ -14,15 +14,28 @@ const validation_1 = require("../shared/validation");
 const constants_1 = require("../shared/constants");
 const syncDuel_engine_1 = require("./syncDuel.engine");
 const GRACE_MS = 300;
+const LATENCY_CAP_MS = 200;
+function clamp(n, min, max) {
+    return Math.max(min, Math.min(max, n));
+}
+function capClientLatencyMs(latencyMs) {
+    if (typeof latencyMs !== "number" || !Number.isFinite(latencyMs))
+        return 0;
+    return clamp(Math.round(latencyMs), 0, LATENCY_CAP_MS);
+}
 function pickWinnerUid(params) {
     const { pendingWinnerUid, challengerUid, pending, challenger, decisionAt } = params;
     const pendingReceiveAt = pending?.serverReceiveAt ?? null;
     const pendingClientElapsedMs = pending?.clientElapsedMs ?? null;
+    const pendingClientLatencyMs = pending?.clientLatencyMs ?? null;
     // challenger within grace window
     if (challenger.serverReceiveAt < decisionAt && pendingReceiveAt !== null) {
-        if (challenger.serverReceiveAt < pendingReceiveAt)
+        // primary: effective receive time (serverReceiveAt - capped clientLatencyMs)
+        const pendingEffective = pendingReceiveAt - capClientLatencyMs(pendingClientLatencyMs);
+        const challengerEffective = challenger.serverReceiveAt - capClientLatencyMs(challenger.clientLatencyMs);
+        if (challengerEffective < pendingEffective)
             return challengerUid;
-        if (challenger.serverReceiveAt > pendingReceiveAt)
+        if (challengerEffective > pendingEffective)
             return pendingWinnerUid;
         const a = pendingClientElapsedMs;
         const b = challenger.clientElapsedMs;
@@ -83,6 +96,7 @@ exports.matchFinalizeSyncDuelDecision = (0, https_1.onCall)({ region: constants_
             const challengerAns = cq.answers?.[challengerUid];
             const challenger = {
                 clientElapsedMs: typeof challengerAns?.clientElapsedMs === "number" ? challengerAns.clientElapsedMs : GRACE_MS,
+                clientLatencyMs: typeof challengerAns?.clientLatencyMs === "number" ? challengerAns.clientLatencyMs : null,
                 serverReceiveAt: challengerAns?.serverReceiveAt ?? nowMs,
             };
             winnerUid = pickWinnerUid({

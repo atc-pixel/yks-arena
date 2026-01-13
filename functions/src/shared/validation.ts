@@ -50,6 +50,8 @@ export const SubmitSyncDuelAnswerInputSchema = z.object({
   roundId: z.string().min(1),
   answer: ChoiceKeySchema,
   clientElapsedMs: z.number().min(0),
+  // Approx RTT/2 (median) from client; untrusted hint, backend will cap.
+  clientLatencyMs: z.number().min(0).max(1000).nullable().optional(),
 });
 
 export const TimeoutSyncDuelQuestionInputSchema = z.object({
