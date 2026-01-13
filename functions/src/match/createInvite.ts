@@ -6,6 +6,7 @@ import { ensureUserDoc } from "../users/ensure";
 import { applyHourlyRefillTx } from "../users/energy";
 import type { UserDoc } from "../users/types";
 import { CreateInviteInputSchema, strictParse } from "../shared/validation";
+import { FUNCTIONS_REGION } from "../shared/constants";
 
 async function allocateInviteCode(len = 6, tries = 5) {
   for (let i = 0; i < tries; i++) {
@@ -17,7 +18,7 @@ async function allocateInviteCode(len = 6, tries = 5) {
 }
 
 export const matchCreateInvite = onCall(
-  { region: "us-central1" },
+  { region: FUNCTIONS_REGION },
   async (req) => {
   const uid = req.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Auth required.");

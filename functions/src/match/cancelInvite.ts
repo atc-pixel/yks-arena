@@ -5,6 +5,7 @@ import { FieldValue } from "firebase-admin/firestore";
 import type { InviteDoc, MatchDoc } from "../shared/types";
 import type { UserDoc } from "../users/types";
 import { CancelInviteInputSchema, strictParse } from "../shared/validation";
+import { FUNCTIONS_REGION } from "../shared/constants";
 
 /**
  * Cancels an invite that is still WAITING.
@@ -13,7 +14,7 @@ import { CancelInviteInputSchema, strictParse } from "../shared/validation";
  * - Marks invite as CANCELLED and match as CANCELLED (or CLOSED).
  */
 export const cancelInvite = onCall(
-  { region: "us-central1" },
+  { region: FUNCTIONS_REGION },
   async (req) => {
     const uid = req.auth?.uid;
     if (!uid) throw new HttpsError("unauthenticated", "Login required.");

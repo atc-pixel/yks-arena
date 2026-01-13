@@ -11,6 +11,7 @@ const firestore_1 = require("firebase-functions/v2/firestore");
 const https_1 = require("firebase-functions/v2/https");
 const firestore_2 = require("../utils/firestore");
 const syncDuel_engine_1 = require("./syncDuel.engine");
+const constants_1 = require("../shared/constants");
 const CHOICES = ["A", "B", "C", "D", "E"];
 function clamp(n, min, max) {
     return Math.max(min, Math.min(max, n));
@@ -39,7 +40,7 @@ function pickBotAnswer(params) {
     const idx = ((seed >> 8) >>> 0) % others.length;
     return { answer: others[idx], delayMs };
 }
-exports.matchBotAutoPlay = (0, firestore_1.onDocumentUpdated)({ document: "matches/{matchId}", region: "us-central1" }, async (event) => {
+exports.matchBotAutoPlay = (0, firestore_1.onDocumentUpdated)({ document: "matches/{matchId}", region: constants_1.FUNCTIONS_REGION }, async (event) => {
     const after = event.data?.after.data();
     if (!after)
         return;

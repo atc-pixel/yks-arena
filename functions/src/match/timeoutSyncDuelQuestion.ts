@@ -9,9 +9,10 @@ import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { db } from "../utils/firestore";
 import type { MatchDoc, SyncDuelMatchStatus } from "../shared/types";
 import { strictParse, TimeoutSyncDuelQuestionInputSchema } from "../shared/validation";
+import { FUNCTIONS_REGION } from "../shared/constants";
 
 export const matchTimeoutSyncDuelQuestion = onCall(
-  { region: "us-central1" },
+  { region: FUNCTIONS_REGION },
   async (req) => {
     const uid = req.auth?.uid;
     if (!uid) throw new HttpsError("unauthenticated", "Auth required.");

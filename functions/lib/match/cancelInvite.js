@@ -6,13 +6,14 @@ const firestore_1 = require("../utils/firestore");
 const energy_1 = require("../users/energy");
 const firestore_2 = require("firebase-admin/firestore");
 const validation_1 = require("../shared/validation");
+const constants_1 = require("../shared/constants");
 /**
  * Cancels an invite that is still WAITING.
  * - Only host can cancel.
  * - Decrements host presence.activeMatchCount by 1 (slot refund).
  * - Marks invite as CANCELLED and match as CANCELLED (or CLOSED).
  */
-exports.cancelInvite = (0, https_1.onCall)({ region: "us-central1" }, async (req) => {
+exports.cancelInvite = (0, https_1.onCall)({ region: constants_1.FUNCTIONS_REGION }, async (req) => {
     const uid = req.auth?.uid;
     if (!uid)
         throw new https_1.HttpsError("unauthenticated", "Login required.");

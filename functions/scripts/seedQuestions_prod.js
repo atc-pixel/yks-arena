@@ -23,7 +23,28 @@ if (process.env.FIRESTORE_EMULATOR_HOST) {
   delete process.env.FIRESTORE_EMULATOR_HOST;
 }
 
-const PROJECT_ID = process.env.GCLOUD_PROJECT || "yks-arena-1a0f8";
+function resolveProjectId() {
+  if (process.env.GCLOUD_PROJECT) return process.env.GCLOUD_PROJECT;
+  try {
+    const projectRoot = path.resolve(__dirname, "..", "..");
+    const firebasercPath = path.join(projectRoot, ".firebaserc");
+    if (fs.existsSync(firebasercPath)) {
+      const rc = JSON.parse(fs.readFileSync(firebasercPath, "utf8"));
+      const pid = rc?.projects?.default;
+      if (typeof pid === "string" && pid.trim()) return pid.trim();
+    }
+  } catch (e) {
+    // ignore and fallback below
+  }
+  return undefined;
+}
+
+const PROJECT_ID = resolveProjectId();
+if (!PROJECT_ID) {
+  throw new Error(
+    "Project ID bulunamadı. .firebaserc içine projects.default ekle veya env olarak GCLOUD_PROJECT set et."
+  );
+}
 
 // Initialize Admin SDK for PRODUCTION
 // Try service account key first (from root directory), fallback to applicationDefault

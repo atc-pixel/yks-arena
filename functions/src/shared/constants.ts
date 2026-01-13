@@ -1,5 +1,13 @@
 // functions/src/shared/constants.ts
 
+/**
+ * Cloud Functions region
+ * - Frontend `getFunctions(app, region)` ile aynı olmalı.
+ * - Prod: europe-west1
+ * - Emulator: region da çalışır ama client tarafında hangi region seçtiysen onu çağırır.
+ */
+export const FUNCTIONS_REGION = "europe-west1" as const;
+
 export const CHOICE_KEYS = ["A", "B", "C", "D", "E"] as const;
 export type ChoiceKey = (typeof CHOICE_KEYS)[number];
 

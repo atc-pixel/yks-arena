@@ -10,6 +10,7 @@ exports.matchLeaveQueue = void 0;
 const https_1 = require("firebase-functions/v2/https");
 const firestore_1 = require("../utils/firestore");
 const validation_1 = require("../shared/validation");
+const constants_1 = require("../shared/constants");
 // ============================================================================
 // CONSTANTS
 // ============================================================================
@@ -17,7 +18,7 @@ const MATCH_QUEUE_COLLECTION = "match_queue";
 // ============================================================================
 // MAIN FUNCTION
 // ============================================================================
-exports.matchLeaveQueue = (0, https_1.onCall)({ region: "us-central1" }, async (req) => {
+exports.matchLeaveQueue = (0, https_1.onCall)({ region: constants_1.FUNCTIONS_REGION }, async (req) => {
     const uid = req.auth?.uid;
     if (!uid)
         throw new https_1.HttpsError("unauthenticated", "Auth required.");

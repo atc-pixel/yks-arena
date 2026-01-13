@@ -8,7 +8,7 @@ import type { QueueTicket, MatchDoc, UserCategoryStats, Category, SyncDuelMatchS
 import { strictParse, EnterQueueInputSchema } from "../shared/validation";
 import { calculateEuclideanDistance, calculateUserVector, getDynamicThreshold, getUserBucket } from "./matchmaking.utils";
 import { ensureBotPool, replenishBot, BOT_POOL_COLLECTION_NAME, type BotPoolEntry } from "./botPool";
-import { BOT_INCLUSION_THRESHOLD_SECONDS } from "../shared/constants";
+import { BOT_INCLUSION_THRESHOLD_SECONDS, FUNCTIONS_REGION } from "../shared/constants";
 
 const MATCH_QUEUE_COLLECTION = "match_queue";
 const MATCHES_COLLECTION = "matches";
@@ -21,7 +21,7 @@ type BestMatch = BestMatchFromQueue | BestMatchFromBotPool;
 const BOT_POOL_CANDIDATE_LIMIT = 12;
 
 export const matchEnterQueue = onCall(
-  { region: "us-central1" },
+  { region: FUNCTIONS_REGION },
   async (req) => {
   const uid = req.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Auth required.");

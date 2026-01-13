@@ -13,6 +13,7 @@ const firestore_1 = require("firebase-functions/v2/firestore");
 const firestore_2 = require("../utils/firestore");
 const types_1 = require("./types");
 const utils_1 = require("./utils");
+const constants_1 = require("../shared/constants");
 const league_1 = require("../shared/types/league");
 const assignToLeague_1 = require("../league/assignToLeague");
 // ============================================================================
@@ -62,7 +63,7 @@ function buildCategoryStatsUpdateFromRoundWins(category, roundWins) {
 // ============================================================================
 exports.matchOnFinished = (0, firestore_1.onDocumentUpdated)({
     document: "matches/{matchId}",
-    region: "us-central1",
+    region: constants_1.FUNCTIONS_REGION,
 }, async (event) => {
     const before = event.data?.before.data();
     const after = event.data?.after.data();

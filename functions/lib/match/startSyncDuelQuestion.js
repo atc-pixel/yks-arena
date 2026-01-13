@@ -12,6 +12,7 @@ exports.matchStartSyncDuelQuestion = void 0;
 const https_1 = require("firebase-functions/v2/https");
 const firestore_1 = require("../utils/firestore");
 const validation_1 = require("../shared/validation");
+const constants_1 = require("../shared/constants");
 const RANDOM_ID_MAX = 10_000_000;
 function randInt(maxExclusive) {
     return Math.floor(Math.random() * maxExclusive);
@@ -51,7 +52,7 @@ async function pickRandomQuestionIdTx(params) {
     }
     throw new https_1.HttpsError("resource-exhausted", `No unused questions available for category "${category}" (randomId retries exhausted).`);
 }
-exports.matchStartSyncDuelQuestion = (0, https_1.onCall)({ region: "us-central1" }, async (req) => {
+exports.matchStartSyncDuelQuestion = (0, https_1.onCall)({ region: constants_1.FUNCTIONS_REGION }, async (req) => {
     const uid = req.auth?.uid;
     if (!uid)
         throw new https_1.HttpsError("unauthenticated", "Auth required.");

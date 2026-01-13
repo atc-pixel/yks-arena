@@ -11,6 +11,7 @@ import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { db } from "../utils/firestore";
 import { strictParse, StartSyncDuelRoundInputSchema } from "../shared/validation";
 import type { MatchDoc, SyncDuelQuestion, Category } from "../shared/types";
+import { FUNCTIONS_REGION } from "../shared/constants";
 
 const RANDOM_ID_MAX = 10_000_000;
 
@@ -70,7 +71,7 @@ async function pickRandomQuestionIdTx(params: {
 }
 
 export const matchStartSyncDuelQuestion = onCall(
-  { region: "us-central1" },
+  { region: FUNCTIONS_REGION },
   async (req) => {
     const uid = req.auth?.uid;
     if (!uid) throw new HttpsError("unauthenticated", "Auth required.");

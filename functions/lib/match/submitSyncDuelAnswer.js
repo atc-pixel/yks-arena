@@ -14,7 +14,8 @@ const https_1 = require("firebase-functions/v2/https");
 const firestore_1 = require("../utils/firestore");
 const validation_1 = require("../shared/validation");
 const syncDuel_engine_1 = require("./syncDuel.engine");
-exports.matchSubmitSyncDuelAnswer = (0, https_1.onCall)({ region: "us-central1" }, async (req) => {
+const constants_1 = require("../shared/constants");
+exports.matchSubmitSyncDuelAnswer = (0, https_1.onCall)({ region: constants_1.FUNCTIONS_REGION }, async (req) => {
     const uid = req.auth?.uid;
     if (!uid)
         throw new https_1.HttpsError("unauthenticated", "Auth required.");

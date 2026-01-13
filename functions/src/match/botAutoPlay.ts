@@ -10,6 +10,7 @@ import { HttpsError } from "firebase-functions/v2/https";
 import { db } from "../utils/firestore";
 import type { ChoiceKey, MatchDoc, QuestionDoc } from "../shared/types";
 import { applySyncDuelAnswerTx, hashStringToInt } from "./syncDuel.engine";
+import { FUNCTIONS_REGION } from "../shared/constants";
 
 const CHOICES: ChoiceKey[] = ["A", "B", "C", "D", "E"];
 
@@ -53,7 +54,7 @@ function pickBotAnswer(params: {
 }
 
 export const matchBotAutoPlay = onDocumentUpdated(
-  { document: "matches/{matchId}", region: "us-central1" },
+  { document: "matches/{matchId}", region: FUNCTIONS_REGION },
   async (event) => {
     const after = event.data?.after.data() as MatchDoc | undefined;
     if (!after) return;

@@ -11,6 +11,7 @@ import * as functions from "firebase-functions/v1";
 import * as admin from "firebase-admin";
 import { USER_COLLECTION } from "./types";
 import { guestNameFromUid } from "./utils";
+import { FUNCTIONS_REGION } from "../shared/constants";
 
 // Admin SDK başlatma
 if (!admin.apps.length) {
@@ -26,7 +27,7 @@ if (!admin.apps.length) {
  * - Gen 1 functions için CPU/memory ayarı yapılamaz (Spark planında çalışır)
  */
 export const ensureUserProfile = functions
-  .region("us-central1")
+  .region(FUNCTIONS_REGION)
   .auth.user()
   .onCreate(async (user) => {
   try {

@@ -47,6 +47,7 @@ const functions = __importStar(require("firebase-functions/v1"));
 const admin = __importStar(require("firebase-admin"));
 const types_1 = require("./types");
 const utils_1 = require("./utils");
+const constants_1 = require("../shared/constants");
 // Admin SDK başlatma
 if (!admin.apps.length) {
     admin.initializeApp();
@@ -60,7 +61,7 @@ if (!admin.apps.length) {
  * - Gen 1 functions için CPU/memory ayarı yapılamaz (Spark planında çalışır)
  */
 exports.ensureUserProfile = functions
-    .region("us-central1")
+    .region(constants_1.FUNCTIONS_REGION)
     .auth.user()
     .onCreate(async (user) => {
     try {

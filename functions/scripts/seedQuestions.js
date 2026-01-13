@@ -7,10 +7,34 @@
  */
 
 const crypto = require("crypto");
+const path = require("path");
+const fs = require("fs");
 const admin = require("firebase-admin");
 
 process.env.FIRESTORE_EMULATOR_HOST = process.env.FIRESTORE_EMULATOR_HOST || "127.0.0.1:8080";
-process.env.GCLOUD_PROJECT = process.env.GCLOUD_PROJECT || "yks-arena-1a0f8";
+
+function resolveProjectId() {
+  if (process.env.GCLOUD_PROJECT) return process.env.GCLOUD_PROJECT;
+  try {
+    const projectRoot = path.resolve(__dirname, "..", "..");
+    const firebasercPath = path.join(projectRoot, ".firebaserc");
+    if (fs.existsSync(firebasercPath)) {
+      const rc = JSON.parse(fs.readFileSync(firebasercPath, "utf8"));
+      const pid = rc?.projects?.default;
+      if (typeof pid === "string" && pid.trim()) return pid.trim();
+    }
+  } catch (e) {
+    // ignore and fallback below
+  }
+  return undefined;
+}
+
+process.env.GCLOUD_PROJECT = resolveProjectId();
+if (!process.env.GCLOUD_PROJECT) {
+  throw new Error(
+    "GCLOUD_PROJECT bulunamadı. .firebaserc içine projects.default ekle veya env olarak GCLOUD_PROJECT set et."
+  );
+}
 
 if (!admin.apps.length) admin.initializeApp({ projectId: process.env.GCLOUD_PROJECT });
 const db = admin.firestore();

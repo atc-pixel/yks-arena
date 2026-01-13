@@ -10,9 +10,10 @@
 
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { ensureUserDoc } from "./ensure";
+import { FUNCTIONS_REGION } from "../shared/constants";
 
 export const ensureUserDocCallable = onCall(
-  { region: "us-central1" },
+  { region: FUNCTIONS_REGION },
   async (req) => {
     try {
       const uid = req.auth?.uid;

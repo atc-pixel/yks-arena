@@ -1,7 +1,14 @@
 "use strict";
 // functions/src/shared/constants.ts
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.TROPHY_NORMALIZATION_FACTOR = exports.MATCH_THRESHOLD_MAX = exports.MATCH_THRESHOLD_INCREMENT = exports.MATCH_THRESHOLD_INCREMENT_INTERVAL = exports.MATCH_THRESHOLD_INITIAL = exports.MATCH_ADJACENT_BUCKET_WAIT_SECONDS = exports.MATCH_RATING_ACC_SCALE = exports.MATCH_RATING_CONFIDENCE_TOTAL = exports.MATCH_RATING_SHRINK_BETA = exports.MATCH_RATING_SHRINK_ALPHA = exports.MATCH_SIGNATURE_NEW_MIN_TOTAL = exports.MATCH_BUCKET_SIZE = exports.MIN_BOT_POOL_SIZE = exports.BOT_INCLUSION_THRESHOLD_SECONDS = exports.DEFAULT_CATEGORY = exports.DEFAULT_LIVES = exports.ALL_SYMBOLS = exports.CHOICE_KEYS = void 0;
+exports.TROPHY_NORMALIZATION_FACTOR = exports.MATCH_THRESHOLD_MAX = exports.MATCH_THRESHOLD_INCREMENT = exports.MATCH_THRESHOLD_INCREMENT_INTERVAL = exports.MATCH_THRESHOLD_INITIAL = exports.MATCH_ADJACENT_BUCKET_WAIT_SECONDS = exports.MATCH_RATING_ACC_SCALE = exports.MATCH_RATING_CONFIDENCE_TOTAL = exports.MATCH_RATING_SHRINK_BETA = exports.MATCH_RATING_SHRINK_ALPHA = exports.MATCH_SIGNATURE_NEW_MIN_TOTAL = exports.MATCH_BUCKET_SIZE = exports.MIN_BOT_POOL_SIZE = exports.BOT_INCLUSION_THRESHOLD_SECONDS = exports.DEFAULT_CATEGORY = exports.DEFAULT_LIVES = exports.ALL_SYMBOLS = exports.CHOICE_KEYS = exports.FUNCTIONS_REGION = void 0;
+/**
+ * Cloud Functions region
+ * - Frontend `getFunctions(app, region)` ile aynı olmalı.
+ * - Prod: europe-west1
+ * - Emulator: region da çalışır ama client tarafında hangi region seçtiysen onu çağırır.
+ */
+exports.FUNCTIONS_REGION = "europe-west1";
 exports.CHOICE_KEYS = ["A", "B", "C", "D", "E"];
 exports.ALL_SYMBOLS = ["BILIM", "COGRAFYA", "SPOR", "MATEMATIK"];
 exports.DEFAULT_LIVES = 5;

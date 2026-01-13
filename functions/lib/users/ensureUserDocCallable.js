@@ -12,7 +12,8 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.ensureUserDocCallable = void 0;
 const https_1 = require("firebase-functions/v2/https");
 const ensure_1 = require("./ensure");
-exports.ensureUserDocCallable = (0, https_1.onCall)({ region: "us-central1" }, async (req) => {
+const constants_1 = require("../shared/constants");
+exports.ensureUserDocCallable = (0, https_1.onCall)({ region: constants_1.FUNCTIONS_REGION }, async (req) => {
     try {
         const uid = req.auth?.uid;
         if (!uid)

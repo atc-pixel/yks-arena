@@ -5,9 +5,10 @@ import { applyHourlyRefillTx } from "../users/energy";
 import type { UserDoc } from "../users/types";
 import type { InviteDoc, SyncDuelMatchState, Category, MatchDoc } from "../shared/types";
 import { JoinInviteInputSchema, strictParse } from "../shared/validation";
+import { FUNCTIONS_REGION } from "../shared/constants";
 
 export const matchJoinInvite = onCall(
-  { region: "us-central1" },
+  { region: FUNCTIONS_REGION },
   async (req) => {
   const uid = req.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Auth required.");

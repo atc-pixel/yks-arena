@@ -11,6 +11,7 @@ import { onDocumentUpdated } from "firebase-functions/v2/firestore";
 import { db, FieldValue } from "../utils/firestore";
 import { USER_COLLECTION, type UserDoc } from "./types";
 import { calcLevelFromTrophies, clampMin } from "./utils";
+import { FUNCTIONS_REGION } from "../shared/constants";
 import { 
   SYSTEM_COLLECTION, 
   LEAGUE_META_DOC_ID, 
@@ -103,7 +104,7 @@ function buildCategoryStatsUpdateFromRoundWins(
 export const matchOnFinished = onDocumentUpdated(
   {
     document: "matches/{matchId}",
-    region: "us-central1",
+    region: FUNCTIONS_REGION,
   },
   async (event) => {
   const before = event.data?.before.data() as MatchDoc | undefined;

@@ -14,7 +14,7 @@ const MATCH_QUEUE_COLLECTION = "match_queue";
 const MATCHES_COLLECTION = "matches";
 const USERS_COLLECTION = "users";
 const BOT_POOL_CANDIDATE_LIMIT = 12;
-exports.matchEnterQueue = (0, https_1.onCall)({ region: "us-central1" }, async (req) => {
+exports.matchEnterQueue = (0, https_1.onCall)({ region: constants_1.FUNCTIONS_REGION }, async (req) => {
     const uid = req.auth?.uid;
     if (!uid)
         throw new https_1.HttpsError("unauthenticated", "Auth required.");

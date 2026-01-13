@@ -13,9 +13,10 @@ import { db } from "../utils/firestore";
 import type { MatchDoc } from "../shared/types";
 import { strictParse, SubmitSyncDuelAnswerInputSchema } from "../shared/validation";
 import { applySyncDuelAnswerTx } from "./syncDuel.engine";
+import { FUNCTIONS_REGION } from "../shared/constants";
 
 export const matchSubmitSyncDuelAnswer = onCall(
-  { region: "us-central1" },
+  { region: FUNCTIONS_REGION },
   async (req) => {
     const uid = req.auth?.uid;
     if (!uid) throw new HttpsError("unauthenticated", "Auth required.");

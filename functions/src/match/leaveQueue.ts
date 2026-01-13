@@ -9,6 +9,7 @@ import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { db } from "../utils/firestore";
 import type { QueueTicket } from "../shared/types";
 import { strictParse, LeaveQueueInputSchema } from "../shared/validation";
+import { FUNCTIONS_REGION } from "../shared/constants";
 
 // ============================================================================
 // CONSTANTS
@@ -21,7 +22,7 @@ const MATCH_QUEUE_COLLECTION = "match_queue";
 // ============================================================================
 
 export const matchLeaveQueue = onCall(
-  { region: "us-central1" },
+  { region: FUNCTIONS_REGION },
   async (req) => {
   const uid = req.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Auth required.");
