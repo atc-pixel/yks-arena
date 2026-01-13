@@ -126,6 +126,8 @@ export default function ResultsPage() {
               const badge = reasonBadge(q.endedReason);
               const me = q.me;
               const opp = q.opp;
+              const meElapsedMs = me?.clientElapsedMs;
+              const oppElapsedMs = opp?.clientElapsedMs;
 
               const meBox =
                 me?.choice === null
@@ -171,9 +173,9 @@ export default function ResultsPage() {
                           <div>Doğru: {me?.isCorrect === null ? "—" : me?.isCorrect ? "EVET" : "HAYIR"}</div>
                           <div>
                             Süre:{" "}
-                            {me?.clientElapsedMs === null
+                            {meElapsedMs == null
                               ? "—"
-                              : `${(me.clientElapsedMs / 1000).toFixed(1)}s`}
+                              : `${(meElapsedMs / 1000).toFixed(1)}s`}
                           </div>
                         </div>
                       </div>
@@ -191,9 +193,9 @@ export default function ResultsPage() {
                           <div>Doğru: {opp?.isCorrect === null ? "—" : opp?.isCorrect ? "EVET" : "HAYIR"}</div>
                           <div>
                             Süre:{" "}
-                            {opp?.clientElapsedMs === null
+                            {oppElapsedMs == null
                               ? "—"
-                              : `${(opp.clientElapsedMs / 1000).toFixed(1)}s`}
+                              : `${(oppElapsedMs / 1000).toFixed(1)}s`}
                           </div>
                         </div>
                       </div>
