@@ -229,27 +229,6 @@ export default function MatchPage() {
             canContinue={false}
           />
         )}
-
-        {/* Debug */}
-        <details className="mt-6 rounded-xl border-4 border-black bg-white p-4 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
-          <summary className="cursor-pointer text-sm font-black uppercase text-black">
-            Debug (sync duel state)
-          </summary>
-          <div className="mt-3 space-y-2">
-            <div className="rounded-lg border-2 border-black bg-neutral-100 p-3 text-xs font-mono text-black">
-              <div>Match Status: {matchStatus}</div>
-              <div>Current Question: {currentQuestionIndex + 1}</div>
-              <div>My Correct: {myCorrectCount}/3</div>
-              <div>Opp Correct: {oppCorrectCount}/3</div>
-              <div>Has Answered: {hasAnswered ? "Yes" : "No"}</div>
-              <div>Can Answer: {canAnswer ? "Yes" : "No"}</div>
-              <div>Category: {category}</div>
-            </div>
-            <pre className="overflow-auto rounded-lg border-2 border-black bg-neutral-100 p-3 text-xs font-mono text-black">
-              {JSON.stringify(syncDuel, null, 2)}
-            </pre>
-          </div>
-        </details>
       </div>
     </main>
   );

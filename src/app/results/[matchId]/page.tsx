@@ -220,14 +220,24 @@ export default function ResultsPage() {
           </motion.div>
         </div>
 
-        {process.env.NODE_ENV === "development" && (
-          <details className="mt-8 rounded-xl border-4 border-black bg-white p-4 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
-            <summary className="cursor-pointer text-sm font-black uppercase text-black">Debug</summary>
-            <pre className="mt-4 overflow-auto rounded-lg border-2 border-black bg-neutral-100 p-4 text-xs font-mono text-black">
-              {JSON.stringify(match, null, 2)}
+        {/* Debug (tek yer): Match akışını burada inceleyelim */}
+        <details className="mt-8 rounded-xl border-4 border-black bg-white p-4 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
+          <summary className="cursor-pointer text-sm font-black uppercase text-black">
+            Debug (Sync Duel)
+          </summary>
+          <div className="mt-3 space-y-2">
+            <div className="rounded-lg border-2 border-black bg-neutral-100 p-3 text-xs font-mono text-black">
+              <div>matchId: {matchId}</div>
+              <div>status: {match.status}</div>
+              <div>winnerUid: {match.winnerUid ?? "—"}</div>
+              <div>syncDuel.matchStatus: {match.syncDuel?.matchStatus ?? "—"}</div>
+              <div>currentQuestionIndex: {(match.syncDuel?.currentQuestionIndex ?? -1) + 1}</div>
+            </div>
+            <pre className="overflow-auto rounded-lg border-2 border-black bg-neutral-100 p-4 text-xs font-mono text-black">
+              {JSON.stringify(match.syncDuel, null, 2)}
             </pre>
-          </details>
-        )}
+          </div>
+        </details>
       </div>
     </main>
   );
