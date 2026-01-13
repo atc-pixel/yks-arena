@@ -21,7 +21,7 @@ const MATCH_QUEUE_COLLECTION = "match_queue";
 // ============================================================================
 
 export const matchLeaveQueue = onCall(
-  { region: "europe-west1" },
+  { region: "us-central1" },
   async (req) => {
   const uid = req.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Auth required.");

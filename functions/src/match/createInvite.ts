@@ -17,7 +17,7 @@ async function allocateInviteCode(len = 6, tries = 5) {
 }
 
 export const matchCreateInvite = onCall(
-  { region: "europe-west1" },
+  { region: "us-central1" },
   async (req) => {
   const uid = req.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Auth required.");

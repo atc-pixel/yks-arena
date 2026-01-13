@@ -10,16 +10,16 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuestionResultFeedback } from "./useQuestionResultFeedback";
-import type { ChoiceKey } from "@/lib/validation/schemas";
+import type { ChoiceKey, SymbolKey } from "@/lib/validation/schemas";
 
 export type MatchLastResult = {
   uid: string;
   questionId: string;
-  symbol: string;
+  symbol: SymbolKey;
   answer: ChoiceKey;
   correctAnswer: ChoiceKey;
   isCorrect: boolean;
-  earnedSymbol: string | null;
+  earnedSymbol: SymbolKey | null;
   at: number;
   questionIndex?: 0 | 1 | 2;
 };

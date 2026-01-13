@@ -10,85 +10,64 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { spin, submitAnswer, continueToNextQuestion } from "@/features/match/services/match.api";
+import {
+  startSyncDuelQuestion,
+  submitSyncDuelAnswer,
+  timeoutSyncDuelQuestion,
+} from "@/features/match/services/match.api";
 import type { ChoiceKey } from "@/lib/validation/schemas";
-import type { MatchDoc } from "@/lib/validation/schemas";
 
 /**
- * Spin mutation
+ * Start sync duel question mutation
  */
-export function useSpinMutation() {
+export function useStartSyncDuelQuestionMutation() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (matchId: string) => spin(matchId),
-    onSuccess: (data) => {
-      // Match cache'ini invalidate et (yeni turn data'sı için)
-      queryClient.invalidateQueries({ queryKey: ["match", data.matchId] });
+    mutationFn: (matchId: string) => startSyncDuelQuestion(matchId),
+    onSuccess: (data, matchId) => {
+      // Match cache'ini invalidate et (yeni question data'sı için)
+      queryClient.invalidateQueries({ queryKey: ["match", matchId] });
     },
   });
 }
 
 /**
- * Submit Answer mutation with optimistic updates
- * 
- * Optimistic Update Strategy:
- * 1. UI'ı hemen güncelle (answer gönderildi, processing state)
- * 2. Firestore'dan gerçek data gelince doğrula
- * 3. Hata olursa geri al
+ * Submit sync duel answer mutation
  */
-export function useSubmitAnswerMutation() {
+export function useSubmitSyncDuelAnswerMutation() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ matchId, answer }: { matchId: string; answer: ChoiceKey }) =>
-      submitAnswer(matchId, answer),
-    onMutate: async ({ matchId, answer }) => {
-      // Cancel outgoing refetches (optimistic update için)
-      await queryClient.cancelQueries({ queryKey: ["match", matchId] });
-
-      // Snapshot previous value (rollback için)
-      const previousMatch = queryClient.getQueryData<MatchDoc>(["match", matchId]);
-
-      // Optimistically update UI
-      if (previousMatch) {
-        queryClient.setQueryData<MatchDoc>(["match", matchId], {
-          ...previousMatch,
-          turn: {
-            ...previousMatch.turn,
-            // Processing state göster (lastResult henüz yok, ama answer gönderildi)
-            // Gerçek lastResult Firestore'dan gelecek
-          },
-        });
-      }
-
-      return { previousMatch };
-    },
-    onError: (err, variables, context) => {
-      // Rollback on error
-      if (context?.previousMatch) {
-        queryClient.setQueryData(["match", variables.matchId], context.previousMatch);
-      }
-    },
+    mutationFn: ({
+      matchId,
+      roundId,
+      answer,
+      clientElapsedMs,
+    }: {
+      matchId: string;
+      roundId: string;
+      answer: ChoiceKey;
+      clientElapsedMs: number;
+    }) => submitSyncDuelAnswer(matchId, roundId, answer, clientElapsedMs),
     onSuccess: (data, variables) => {
-      // Invalidate match query (gerçek data ile güncelle)
+      // Match cache'ini invalidate et (cevap kaydedildi, round state güncellendi)
       queryClient.invalidateQueries({ queryKey: ["match", variables.matchId] });
     },
   });
 }
 
 /**
- * Continue to next question mutation
+ * Timeout sync duel question mutation
  */
-export function useContinueToNextQuestionMutation() {
+export function useTimeoutSyncDuelQuestionMutation() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (matchId: string) => continueToNextQuestion(matchId),
+    mutationFn: (matchId: string) => timeoutSyncDuelQuestion(matchId),
     onSuccess: (data, matchId) => {
-      // Match cache'ini invalidate et (yeni question için)
+      // Match cache'ini invalidate et (QUESTION_RESULT update'i için)
       queryClient.invalidateQueries({ queryKey: ["match", matchId] });
     },
   });
 }
-

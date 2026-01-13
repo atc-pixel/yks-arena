@@ -13,11 +13,12 @@ const constants_1 = require("../shared/constants");
 const MATCH_QUEUE_COLLECTION = "match_queue";
 const MATCHES_COLLECTION = "matches";
 const USERS_COLLECTION = "users";
-exports.matchEnterQueue = (0, https_1.onCall)({ region: "europe-west1" }, async (req) => {
+const BOT_POOL_CANDIDATE_LIMIT = 12;
+exports.matchEnterQueue = (0, https_1.onCall)({ region: "us-central1" }, async (req) => {
     const uid = req.auth?.uid;
     if (!uid)
         throw new https_1.HttpsError("unauthenticated", "Auth required.");
-    (0, validation_1.strictParse)(validation_1.EnterQueueInputSchema, req.data, "matchEnterQueue");
+    const { category } = (0, validation_1.strictParse)(validation_1.EnterQueueInputSchema, req.data, "matchEnterQueue");
     await (0, ensure_1.ensureUserDoc)(uid);
     // Bot havuzu bakımı (fire-and-forget)
     (0, botPool_1.ensureBotPool)().catch((e) => console.error("[BotPool] Maintenance failed:", e));
@@ -52,11 +53,15 @@ exports.matchEnterQueue = (0, https_1.onCall)({ region: "europe-west1" }, async 
             .limit(10));
         let bestMatch = null;
         let minDistance = Infinity;
-        // Adayları tara
-        queueCandidatesSnap.docs.forEach(doc => {
+        // Adayları tara (kategori eşleşmesi kontrolü)
+        // Not: forEach callback'i TS control-flow tarafından analiz edilmediği için burada for..of kullanıyoruz.
+        for (const doc of queueCandidatesSnap.docs) {
             if (doc.id === uid)
-                return;
+                continue;
             const candidate = doc.data();
+            // Kategori eşleşmesi kontrolü (aynı kategori olmalı)
+            if (candidate.category !== category)
+                continue;
             // HATA BURADAYDI: skillVector'ın varlığını garantiye alıyoruz
             const distance = (0, matchmaking_utils_1.calculateEuclideanDistance)(currentUserVector, candidate.skillVector);
             const threshold = (0, matchmaking_utils_1.getDynamicThreshold)(waitSeconds);
@@ -64,32 +69,71 @@ exports.matchEnterQueue = (0, https_1.onCall)({ region: "europe-west1" }, async 
                 minDistance = distance;
                 bestMatch = { id: doc.id, ...candidate, source: "queue" };
             }
-        });
+        }
         // Rakip bulunamadıysa BOT_POOL
         if (!bestMatch && waitSeconds >= constants_1.BOT_INCLUSION_THRESHOLD_SECONDS) {
+            console.log(`[Matchmaking] Bot inclusion window reached (waitSeconds=${waitSeconds}, threshold=${constants_1.BOT_INCLUSION_THRESHOLD_SECONDS})`);
             const botPoolSnap = await tx.get(firestore_1.db.collection(botPool_1.BOT_POOL_COLLECTION_NAME)
                 .where("status", "==", "AVAILABLE")
-                .limit(1));
+                .limit(BOT_POOL_CANDIDATE_LIMIT));
             if (!botPoolSnap.empty) {
-                const botDoc = botPoolSnap.docs[0];
-                const botData = botDoc.data();
-                bestMatch = { id: botDoc.id, ...botData, isBot: true, source: "bot_pool" };
+                console.log(`[Matchmaking] Bot pool candidates: ${botPoolSnap.size}`);
+                // En uygun bot = en küçük skillVector mesafesi
+                let bestBotDoc = null;
+                let bestBotData = null;
+                let bestBotDistance = Infinity;
+                for (const botDoc of botPoolSnap.docs) {
+                    const botData = botDoc.data();
+                    const dist = (0, matchmaking_utils_1.calculateEuclideanDistance)(currentUserVector, botData.skillVector);
+                    if (dist < bestBotDistance) {
+                        bestBotDistance = dist;
+                        bestBotDoc = botDoc;
+                        bestBotData = botData;
+                    }
+                }
+                if (bestBotDoc && bestBotData) {
+                    console.log(`[Matchmaking] Selected bot=${bestBotDoc.id} dist=${Math.round(bestBotDistance)} difficulty=${bestBotData.botDifficulty ?? "na"}`);
+                    bestMatch = { id: bestBotDoc.id, ...bestBotData, isBot: true, source: "bot_pool" };
+                }
+            }
+            else {
+                console.log("[Matchmaking] Bot pool empty (no AVAILABLE bots).");
             }
         }
         if (bestMatch) {
             const matchId = (0, nanoid_1.nanoid)(20);
             const matchRef = firestore_1.db.collection(MATCHES_COLLECTION).doc(matchId);
+            // Bot pool'dan gelen botlar için category kullan (eğer category yoksa kullanıcının seçtiği kategoriyi kullan)
+            const matchCategory = bestMatch.source === "queue" ? bestMatch.category : category;
+            // Sync duel match state initialize
+            const syncDuel = {
+                questions: [],
+                correctCounts: {
+                    [uid]: 0,
+                    [bestMatch.id]: 0,
+                },
+                roundWins: {
+                    [uid]: 0,
+                    [bestMatch.id]: 0,
+                },
+                currentQuestionIndex: -1,
+                matchStatus: "WAITING_PLAYERS",
+                disconnectedAt: {},
+                reconnectDeadline: {},
+                rageQuitUids: [],
+                category: matchCategory,
+            };
             const matchDoc = {
                 createdAt: nowTimestamp,
                 status: "ACTIVE",
-                mode: "RANDOM",
+                mode: "SYNC_DUEL",
                 players: [uid, bestMatch.id],
-                playerTypes: { [uid]: "HUMAN", [bestMatch.id]: bestMatch.isBot ? "BOT" : "HUMAN" },
-                turn: { currentUid: uid, phase: "SPIN", challengeSymbol: null, streak: 0, activeQuestionId: null, usedQuestionIds: [], streakSymbol: null, questionIndex: 0 },
+                syncDuel,
                 stateByUid: {
                     [uid]: { trophies: 0, symbols: [], wrongCount: 0, answeredCount: 0 },
                     [bestMatch.id]: { trophies: 0, symbols: [], wrongCount: 0, answeredCount: 0 },
                 },
+                playerTypes: { [uid]: "HUMAN", [bestMatch.id]: bestMatch.isBot ? "BOT" : "HUMAN" },
             };
             tx.set(matchRef, matchDoc);
             tx.update(userRef, { "presence.activeMatchCount": firestore_1.FieldValue.increment(1) });
@@ -112,6 +156,7 @@ exports.matchEnterQueue = (0, https_1.onCall)({ region: "europe-west1" }, async 
             createdAt: ticketSnap.exists ? ticketSnap.data().createdAt : nowTimestamp,
             status: "WAITING",
             skillVector: currentUserVector,
+            category,
             isBot: false,
         };
         tx.set(ticketRef, newTicket);

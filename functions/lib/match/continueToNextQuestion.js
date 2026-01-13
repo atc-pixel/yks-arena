@@ -12,7 +12,7 @@ const validation_1 = require("../shared/validation");
  * - Kullanıcı "Devam" butonuna basınca bu function çağrılır
  * - nextQuestionId'yi activeQuestionId'ye set eder ve phase'i QUESTION yapar
  */
-exports.matchContinueToNextQuestion = (0, https_1.onCall)({ region: "europe-west1" }, async (req) => {
+exports.matchContinueToNextQuestion = (0, https_1.onCall)({ region: "us-central1" }, async (req) => {
     const uid = req.auth?.uid;
     if (!uid)
         throw new https_1.HttpsError("unauthenticated", "Auth required.");

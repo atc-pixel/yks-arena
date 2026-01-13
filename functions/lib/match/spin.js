@@ -48,7 +48,7 @@ async function pickRandomQuestionIdTx(params) {
     }
     throw new https_1.HttpsError("resource-exhausted", `No unused questions available for category "${category}" (randomId retries exhausted).`);
 }
-exports.matchSpin = (0, https_1.onCall)({ region: "europe-west1" }, async (req) => {
+exports.matchSpin = (0, https_1.onCall)({ region: "us-central1" }, async (req) => {
     const uid = req.auth?.uid;
     if (!uid)
         throw new https_1.HttpsError("unauthenticated", "Auth required.");

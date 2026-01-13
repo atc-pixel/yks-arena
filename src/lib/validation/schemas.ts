@@ -54,7 +54,7 @@ export const ChoiceKeySchema = z.enum(["A", "B", "C", "D", "E"]);
 export const MatchStatusSchema = z.enum(["WAITING", "ACTIVE", "FINISHED", "CANCELLED"]);
 export const SymbolKeySchema = z.enum(["BILIM", "COGRAFYA", "SPOR", "MATEMATIK"]);
 export const TurnPhaseSchema = z.enum(["SPIN", "QUESTION", "RESULT", "END"]);
-export const MatchModeSchema = z.enum(["RANDOM", "INVITE"]);
+export const MatchModeSchema = z.enum(["SYNC_DUEL"]);
 export const LeagueNameSchema = z.enum(["Teneke", "BRONZE", "SILVER", "GOLD", "PLATINUM", "DIAMOND"]);
 export const LeagueTierSchema = z.enum(["Teneke", "Bronze", "Silver", "Gold", "Platinum", "Diamond"]);
 
@@ -108,28 +108,49 @@ export const PlayerStateSchema = z.object({
   answeredCount: z.number(),
 });
 
-export const MatchTurnSchema = z.object({
-  currentUid: z.string(),
-  phase: TurnPhaseSchema,
-  challengeSymbol: SymbolKeySchema.nullable(),
-  streak: z.number(),
-  activeQuestionId: z.string().nullable(),
-  nextQuestionId: z.string().nullable().optional(), // Q1 doğru olduğunda Q2'yi burada sakla (RESULT phase'inde)
-  usedQuestionIds: z.array(z.string()),
-  lastResult: TurnLastResultSchema.nullable().optional(),
-  streakSymbol: SymbolKeySchema.nullable().optional(),
-  questionIndex: z.union([z.literal(0), z.literal(1), z.literal(2)]).optional(),
+// ============================================================================
+// SYNC DUEL SCHEMAS
+// ============================================================================
+
+export const SyncDuelQuestionAnswerSchema = z.object({
+  choice: ChoiceKeySchema.nullable(),
+  isCorrect: z.boolean().nullable(),
+  clientElapsedMs: z.number().nullable(),
+  serverReceiveAt: z.number().nullable(),
+});
+
+export const SyncDuelQuestionSchema = z.object({
+  questionId: z.string(),
+  serverStartAt: z.number(),
+  answers: z.record(z.string(), SyncDuelQuestionAnswerSchema),
+  endedReason: z.enum(["CORRECT", "TWO_WRONG", "TIMEOUT"]).nullable(),
+  endedAt: z.number().nullable(),
+});
+
+export const SyncDuelMatchStatusSchema = z.enum(["WAITING_PLAYERS", "QUESTION_ACTIVE", "QUESTION_RESULT", "MATCH_FINISHED"]);
+
+export const SyncDuelMatchStateSchema = z.object({
+  questions: z.array(SyncDuelQuestionSchema),
+  correctCounts: z.record(z.string(), z.number()),
+  roundWins: z.record(z.string(), z.number()).optional(),
+  currentQuestionIndex: z.number().min(-1), // -1 = henüz soru başlatılmamış
+  matchStatus: SyncDuelMatchStatusSchema,
+  disconnectedAt: z.record(z.string(), z.number().nullable()),
+  reconnectDeadline: z.record(z.string(), z.number().nullable()),
+  rageQuitUids: z.array(z.string()),
+  category: CategorySchema,
 });
 
 export const MatchDocSchema = z.object({
   createdAt: FirestoreTimestampSchema,
   status: MatchStatusSchema,
   mode: MatchModeSchema,
-  players: z.array(z.string()).min(1).max(2), // 1 player (WAITING) or 2 players (ACTIVE)
-  turn: MatchTurnSchema,
+  players: z.array(z.string()).min(1).max(2),
+  syncDuel: SyncDuelMatchStateSchema,
   stateByUid: z.record(z.string(), PlayerStateSchema),
   winnerUid: z.string().optional(),
   endedReason: z.string().optional(),
+  playerTypes: z.record(z.string(), z.enum(["HUMAN", "BOT"])).optional(),
 });
 
 // ============================================================================
@@ -192,8 +213,27 @@ export const CancelInviteInputSchema = z.object({
 });
 
 // Matchmaking schemas
-export const EnterQueueInputSchema = z.object({});
+export const EnterQueueInputSchema = z.object({
+  category: CategorySchema,
+});
 export const LeaveQueueInputSchema = z.object({});
+
+// Sync Duel schemas
+export const StartSyncDuelRoundInputSchema = z.object({
+  matchId: z.string().min(1),
+});
+
+export const SubmitSyncDuelAnswerInputSchema = z.object({
+  matchId: z.string().min(1),
+  roundId: z.string().min(1),
+  answer: ChoiceKeySchema,
+  clientElapsedMs: z.number().min(0),
+});
+
+// Sync Duel timeout (QUESTION_ACTIVE 60s dolunca)
+export const TimeoutSyncDuelQuestionInputSchema = z.object({
+  matchId: z.string().min(1),
+});
 
 // ============================================================================
 // TYPE EXPORTS (Zod'dan infer edilen types + utility types)
@@ -204,6 +244,8 @@ export type MatchDoc = z.infer<typeof MatchDocSchema>;
 export type UserDoc = z.infer<typeof UserDocSchema>;
 export type PlayerState = z.infer<typeof PlayerStateSchema>;
 export type TurnLastResult = z.infer<typeof TurnLastResultSchema>;
+export type SyncDuelMatchState = z.infer<typeof SyncDuelMatchStateSchema>;
+export type SyncDuelMatchStatus = z.infer<typeof SyncDuelMatchStatusSchema>;
 
 // Utility types (backward compatibility için)
 export type Category = z.infer<typeof CategorySchema>;

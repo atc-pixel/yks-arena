@@ -35,17 +35,21 @@ export function ActiveMatchList({
       const oppUid = players.find((p) => p !== uid) ?? null;
 
       const isWaiting = m.status === "WAITING" || !oppUid;
-      const isMyTurn = m.turn?.currentUid === uid && m.status === "ACTIVE";
+      // Sync duel'da turn yok, matchStatus kullanılıyor
+      const isActive = m.status === "ACTIVE";
+      const matchStatus = m.syncDuel?.matchStatus ?? "WAITING_PLAYERS";
+      // Sync duel status'leri: WAITING_PLAYERS | QUESTION_ACTIVE | QUESTION_RESULT | MATCH_FINISHED
+      const isMyRound = isActive && (matchStatus === "QUESTION_ACTIVE" || matchStatus === "QUESTION_RESULT");
 
       const title = isWaiting ? "Bekleniyor..." : shortUid(oppUid!);
       const subtitle =
         m.status === "WAITING"
           ? "Rakip katılınca başlayacak"
-          : isMyTurn
-            ? "SENİN SIRAN"
-            : "Rakipte";
+          : isMyRound
+            ? "Devam Ediyor"
+            : "Bekleniyor";
 
-      return { match: m, title, subtitle, isMyTurn, isWaiting };
+      return { match: m, title, subtitle, isMyRound, isWaiting };
     });
   }, [matches, uid]);
 
@@ -84,7 +88,7 @@ export function ActiveMatchList({
       )}
 
       <div className="mt-4 grid gap-4">
-        {rows.map(({ match, title, subtitle, isMyTurn }, index) => {
+        {rows.map(({ match, title, subtitle, isMyRound }, index) => {
           // FINISHED match'leri result sayfasına yönlendir
           const handleClick = () => {
             if (match.status === "FINISHED") {
@@ -105,7 +109,7 @@ export function ActiveMatchList({
             onClick={handleClick}
             className={[
               "w-full rounded-2xl border-4 border-black p-5 text-left shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] transition-all",
-              isMyTurn
+              isMyRound
                 ? "bg-linear-to-br from-lime-400 to-green-500 hover:shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]"
                 : "bg-linear-to-br from-blue-400 to-cyan-500 hover:shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]",
             ].join(" ")}
@@ -113,20 +117,20 @@ export function ActiveMatchList({
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-4">
                 <motion.div
-                  animate={isMyTurn ? { rotate: [0, -10, 10, -10, 0] } : {}}
+                  animate={isMyRound ? { rotate: [0, -10, 10, -10, 0] } : {}}
                   transition={
-                    isMyTurn
+                    isMyRound
                       ? { repeat: Infinity, duration: 2, ease: "easeInOut" }
                       : {}
                   }
                   className={[
                     "grid h-14 w-14 place-items-center rounded-xl border-4 border-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]",
-                    isMyTurn
+                    isMyRound
                       ? "bg-yellow-400"
                       : "bg-white",
                   ].join(" ")}
                 >
-                  <Swords className={["h-6 w-6", isMyTurn ? "text-black" : "text-blue-600"].join(" ")} />
+                  <Swords className={["h-6 w-6", isMyRound ? "text-black" : "text-blue-600"].join(" ")} />
                 </motion.div>
 
                 <div>
@@ -136,7 +140,7 @@ export function ActiveMatchList({
                   <div
                     className={[
                       "mt-2 inline-flex items-center rounded-lg border-2 border-black px-3 py-1 text-xs font-black uppercase shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]",
-                      isMyTurn
+                      isMyRound
                         ? "bg-yellow-400 text-black"
                         : "bg-white text-blue-600",
                     ].join(" ")}

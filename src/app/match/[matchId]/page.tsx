@@ -1,31 +1,29 @@
-"use client";
-
-import { useEffect, useRef } from "react";
-import { motion } from "framer-motion";
-import { useParams, useRouter } from "next/navigation";
-import { useMatchPageLogic } from "@/features/match/hooks/useMatchPageLogic";
-import { MatchHeader } from "@/components/match/MatchHeader";
-import { LastResultCard } from "@/components/match/LastResultCard";
-import { PlayerScoreboard } from "@/components/match/PlayerScoreboard";
-import { SpinPanel } from "@/components/match/SpinPanel";
-import { QuestionPanel, type MatchLastResult } from "@/components/match/QuestionPanel";
-import { useSound } from "@/hooks/useSound";
-import { useMatchStore } from "@/stores/matchStore";
-
 /**
- * Match Page Component
+ * Match Page Component (Sync Duel)
  * 
  * Architecture Decision:
  * - Component "dumb" kalır, sadece UI render eder
- * - Tüm logic useMatchPageLogic hook'unda
+ * - Tüm logic useSyncDuelGame hook'unda
  * - UI parçaları ayrı component'lere bölündü
+ * - Debug info için raw match data gösterilir
  */
+
+"use client";
+
+import { useEffect } from "react";
+import { motion } from "framer-motion";
+import { useParams, useRouter } from "next/navigation";
+import { useSyncDuelGame } from "@/features/match/hooks/useSyncDuelGame";
+import { RoundProgressBar } from "@/components/match/RoundProgressBar";
+import { RoundTimer } from "@/components/match/RoundTimer";
+import { QuestionPanel, type MatchLastResult } from "@/components/match/QuestionPanel";
+import { useMatchStore } from "@/stores/matchStore";
+import type { SymbolKey } from "@/lib/validation/schemas";
+
 export default function MatchPage() {
   const params = useParams<{ matchId: string }>();
   const matchId = params.matchId;
   const router = useRouter();
-  const { playCorrect } = useSound();
-  const playedSymbolRef = useRef<string | null>(null);
   const resetInvite = useMatchStore((state) => state.resetInvite);
 
   // Match sayfasına gelince invite state'ini temizle (anasayfaya dönerken modal açılmasın)
@@ -38,39 +36,23 @@ export default function MatchPage() {
     loading,
     myUid,
     oppUid,
-    isMyTurn,
-    phase,
-    activeQuestionId,
-    challengeSymbol,
+    syncDuel,
+    currentQuestion,
+    currentQuestionIndex,
+    matchStatus,
+    myCorrectCount,
+    oppCorrectCount,
     question,
     questionLoading,
-    myState,
-    oppState,
-    lastResult,
+    myAnswer,
+    hasAnswered,
+    canStartQuestion,
+    canAnswer,
     busy,
     error,
-    onSpin,
-    onSubmit,
-    onContinue,
-    canSpin,
-    canAnswer,
-    canContinue,
-  } = useMatchPageLogic(matchId);
-
-  // Sembol kazanıldığında doğru cevap sesi çal
-  useEffect(() => {
-    if (!lastResult || !myUid) return;
-    if (lastResult.uid !== myUid) return;
-    if (!lastResult.earnedSymbol) return;
-
-    // Aynı sembol için tekrar çalma (at timestamp ile unique key)
-    const key = `${lastResult.earnedSymbol}:${lastResult.at}`;
-    if (playedSymbolRef.current === key) return;
-    playedSymbolRef.current = key;
-
-    // Sembol kazanıldığında doğru cevap sesi çal
-    playCorrect();
-  }, [lastResult, myUid, playCorrect]);
+    startQuestion,
+    submitAnswer,
+  } = useSyncDuelGame(matchId);
 
   if (loading) {
     return (
@@ -84,28 +66,54 @@ export default function MatchPage() {
     );
   }
 
-  if (!match) {
+  if (!match || match.mode !== "SYNC_DUEL") {
     return (
       <main className="min-h-dvh bg-linear-to-b from-indigo-950 via-purple-950 to-pink-950 text-neutral-100">
         <div className="mx-auto max-w-4xl px-4 py-10">
           <div className="rounded-2xl border-4 border-black bg-red-400 p-6 text-center text-lg font-black text-black shadow-[6px_6px_0px_0px_rgba(0,0,0,1)]">
-            Match not found.
+            Match not found or not a sync duel match.
           </div>
         </div>
       </main>
     );
   }
 
+  const category: SymbolKey | null = syncDuel?.category ?? null;
+  const questionStartAt = currentQuestion?.serverStartAt ?? null;
+
+  // Question panel için lastResult
+  const lastResult: MatchLastResult | null =
+    currentQuestion && category && myAnswer?.choice && question?.answer
+    ? {
+        uid: myUid ?? "",
+        questionId: currentQuestion.questionId,
+        symbol: category,
+        answer: myAnswer.choice,
+        correctAnswer: question.answer,
+        isCorrect: myAnswer.isCorrect ?? false,
+        earnedSymbol: null,
+        at: Date.now(),
+      }
+    : null;
+
   return (
     <main className="min-h-dvh bg-linear-to-b from-indigo-950 via-purple-950 to-pink-950 text-neutral-100">
       <div className="mx-auto w-full max-w-4xl px-4 py-10">
-        {/* Header */}
-        <MatchHeader
-          status={match.status}
-          isMyTurn={isMyTurn}
-          phase={phase}
-          onGoHome={() => router.push("/")}
-        />
+        {/* Header with timer */}
+        <div className="mb-6 flex items-center justify-between gap-4">
+          <motion.button
+            onClick={() => router.push("/")}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            className="rounded-xl border-4 border-black bg-white px-4 py-2 text-sm font-black uppercase tracking-wide text-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:bg-neutral-100"
+          >
+            ← Home
+          </motion.button>
+
+          {matchStatus === "QUESTION_ACTIVE" && questionStartAt && (
+            <RoundTimer roundStartAt={questionStartAt} />
+          )}
+        </div>
 
         {/* Error banner */}
         {error && (
@@ -118,63 +126,118 @@ export default function MatchPage() {
           </motion.div>
         )}
 
-        {/* Last result */}
-        {lastResult && <LastResultCard lastResult={lastResult} />}
-
-        {/* Scoreboard */}
-        <div className="grid gap-4 md:grid-cols-2">
-          <PlayerScoreboard label="Sen" uid={myUid} state={myState} />
-          <PlayerScoreboard label="Rakip" uid={oppUid} state={oppState} isOpponent />
+        {/* Progress Bar - 3 doğruya ulaşma */}
+        <div className="mb-6">
+          <div className="rounded-xl border-4 border-black bg-white p-4 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex-1">
+                <div className="text-sm font-black uppercase text-black">Sen: {myCorrectCount}/3</div>
+                <div className="mt-1 h-4 w-full rounded-full bg-neutral-200">
+                  <div
+                    className="h-full rounded-full bg-lime-400 transition-all"
+                    style={{ width: `${(myCorrectCount / 3) * 100}%` }}
+                  />
+                </div>
+              </div>
+              <div className="flex-1">
+                <div className="text-sm font-black uppercase text-black">Rakip: {oppCorrectCount}/3</div>
+                <div className="mt-1 h-4 w-full rounded-full bg-neutral-200">
+                  <div
+                    className="h-full rounded-full bg-red-400 transition-all"
+                    style={{ width: `${(oppCorrectCount / 3) * 100}%` }}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
 
-        {/* Game loop panels */}
-        <div className="mt-6">
-          {phase === "SPIN" && (
-            <SpinPanel
-              canSpin={canSpin}
-              busy={busy !== null}
-              lastSymbol={challengeSymbol}
-              onSpin={onSpin}
-            />
-          )}
+        {/* Match Status Panel */}
+        {matchStatus === "WAITING_PLAYERS" && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-6 rounded-2xl border-4 border-black bg-yellow-400 p-6 text-center shadow-[6px_6px_0px_0px_rgba(0,0,0,1)]"
+          >
+            <h2 className="text-xl font-black uppercase tracking-wide text-black">
+              Oyuncular Bekleniyor
+            </h2>
+            <p className="mt-3 text-sm font-black text-black">Maç başlıyor...</p>
+          </motion.div>
+        )}
 
-          {phase === "QUESTION" && (
-            <QuestionPanel
-              canAnswer={canAnswer}
-              busy={busy !== null}
-              myUid={myUid}
-              activeQuestionId={activeQuestionId}
-              category={challengeSymbol}
-              questionText={questionLoading ? "Soru yükleniyor..." : (question?.question ?? "Soru bulunamadı.")}
-              choices={question?.choices ?? null}
-              lastResult={lastResult as MatchLastResult | null}
-              onSubmit={onSubmit}
-              onContinue={onContinue}
-              canContinue={canContinue}
-            />
-          )}
+        {/* Question Result Panel */}
+        {matchStatus === "QUESTION_RESULT" && currentQuestion && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-6 rounded-2xl border-4 border-black bg-linear-to-br from-purple-400 to-pink-500 p-6 text-center shadow-[6px_6px_0px_0px_rgba(0,0,0,1)]"
+          >
+            <h2 className="text-xl font-black uppercase tracking-wide text-black">
+              Soru {currentQuestionIndex + 1} Sonucu
+            </h2>
+            {currentQuestion.endedReason === "CORRECT" && myAnswer?.isCorrect && (
+              <p className="mt-2 text-lg font-black text-green-600">✓ Doğru Cevap!</p>
+            )}
+            {currentQuestion.endedReason === "CORRECT" && !myAnswer?.isCorrect && (
+              <p className="mt-2 text-lg font-black text-red-600">✗ Rakip Doğru Cevap Verdi</p>
+            )}
+            {currentQuestion.endedReason === "TWO_WRONG" && (
+              <p className="mt-2 text-lg font-black text-yellow-600">= Her İkiniz de Yanlış</p>
+            )}
+            {currentQuestion.endedReason === "TIMEOUT" && (
+              <p className="mt-2 text-lg font-black text-orange-600">⏱ Süre Doldu</p>
+            )}
+            <p className="mt-3 text-sm font-black text-black">Sonraki soru hazırlanıyor...</p>
 
-          {phase === "RESULT" && (
-            <QuestionPanel
-              canAnswer={false}
-              busy={busy !== null}
-              myUid={myUid}
-              activeQuestionId={activeQuestionId}
-              category={challengeSymbol}
-              questionText={questionLoading ? "Soru yükleniyor..." : (question?.question ?? "Soru bulunamadı.")}
-              choices={question?.choices ?? null}
-              lastResult={lastResult as MatchLastResult | null}
-              onSubmit={onSubmit}
-              onContinue={onContinue}
-              canContinue={canContinue}
-            />
-          )}
-        </div>
+            {/* Fallback: auto-start takılırsa manuel devam */}
+            <motion.button
+              onClick={startQuestion}
+              disabled={busy !== null || !canStartQuestion}
+              whileHover={busy === null && canStartQuestion ? { scale: 1.05, y: -2 } : {}}
+              whileTap={{ scale: 0.95, y: 0 }}
+              className="mt-4 w-full rounded-xl border-4 border-black bg-yellow-300 px-5 py-4 text-base font-black uppercase tracking-wide text-black shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] transition-all disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {busy ? "Yükleniyor..." : "Sonraki Soru"}
+            </motion.button>
+          </motion.div>
+        )}
+
+        {/* Question Panel (QUESTION_ACTIVE) */}
+        {matchStatus === "QUESTION_ACTIVE" && question && (
+          <QuestionPanel
+            canAnswer={canAnswer}
+            busy={busy !== null}
+            myUid={myUid}
+            activeQuestionId={currentQuestion?.questionId ?? null}
+            category={category}
+            questionText={question.question}
+            choices={question.choices}
+            lastResult={lastResult}
+            onSubmit={submitAnswer}
+            canContinue={false}
+          />
+        )}
 
         {/* Debug */}
         <details className="mt-6 rounded-xl border-4 border-black bg-white p-4 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
-          <summary className="cursor-pointer text-sm font-black uppercase text-black">Debug (match raw)</summary>
-          <pre className="mt-3 overflow-auto rounded-lg border-2 border-black bg-neutral-100 p-3 text-xs font-mono text-black">{JSON.stringify(match, null, 2)}</pre>
+          <summary className="cursor-pointer text-sm font-black uppercase text-black">
+            Debug (sync duel state)
+          </summary>
+          <div className="mt-3 space-y-2">
+            <div className="rounded-lg border-2 border-black bg-neutral-100 p-3 text-xs font-mono text-black">
+              <div>Match Status: {matchStatus}</div>
+              <div>Current Question: {currentQuestionIndex + 1}</div>
+              <div>My Correct: {myCorrectCount}/3</div>
+              <div>Opp Correct: {oppCorrectCount}/3</div>
+              <div>Has Answered: {hasAnswered ? "Yes" : "No"}</div>
+              <div>Can Answer: {canAnswer ? "Yes" : "No"}</div>
+              <div>Category: {category}</div>
+            </div>
+            <pre className="overflow-auto rounded-lg border-2 border-black bg-neutral-100 p-3 text-xs font-mono text-black">
+              {JSON.stringify(syncDuel, null, 2)}
+            </pre>
+          </div>
         </details>
       </div>
     </main>

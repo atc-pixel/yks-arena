@@ -8,7 +8,7 @@
  * - Global user state Zustand'dan alınır (energy, canPlay, etc.)
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useAnonAuth } from "@/features/auth/useAnonAuth";
 import { useUser } from "@/features/users/hooks/useUser.rq";
 import { useActiveMatches } from "@/features/match/hooks/useActiveMatches.rq";
@@ -61,27 +61,32 @@ export function useHomePageLogic() {
 
   // Error handling
   useEffect(() => {
-    if (authError) setError(authError);
-    if (userError) setError(userError?.message || "User fetch failed");
-    if (createInviteMutation.error) setError(createInviteMutation.error.message);
-    if (joinInviteMutation.error) setError(joinInviteMutation.error.message);
-    if (cancelInviteMutation.error) {
-      const errorMsg = cancelInviteMutation.error.message;
-      // CORS veya network hatalarında daha açıklayıcı mesaj
-      if (errorMsg.includes("CORS") || errorMsg.includes("fetch")) {
-        setError("İptal işlemi başarısız. Emulator'ı yeniden başlatmayı deneyin.");
-      } else {
-        setError(errorMsg);
-      }
-    }
-    if (enterQueueMutation.error) {
-      const errorMsg = enterQueueMutation.error.message;
-      if (errorMsg.includes("ENERGY_ZERO")) {
-        setError("Enerjin yok. Maç başlatmak için enerji refill'ini bekle ya da kutu aç!");
-      } else {
-        setError(errorMsg);
-      }
-    }
+    const nextError =
+      authError ??
+      (userError ? userError.message || "User fetch failed" : null) ??
+      (createInviteMutation.error ? createInviteMutation.error.message : null) ??
+      (joinInviteMutation.error ? joinInviteMutation.error.message : null) ??
+      (() => {
+        if (!cancelInviteMutation.error) return null;
+        const errorMsg = cancelInviteMutation.error.message;
+        if (errorMsg.includes("CORS") || errorMsg.includes("fetch")) {
+          return "İptal işlemi başarısız. Emulator'ı yeniden başlatmayı deneyin.";
+        }
+        return errorMsg;
+      })() ??
+      (() => {
+        if (!enterQueueMutation.error) return null;
+        const errorMsg = enterQueueMutation.error.message;
+        if (errorMsg.includes("ENERGY_ZERO")) {
+          return "Enerjin yok. Maç başlatmak için enerji refill'ini bekle ya da kutu aç!";
+        }
+        return errorMsg;
+      })() ??
+      null;
+
+    // Guard: aynı error string'ini tekrar set etmeyelim (render loop riskini azaltır)
+    setError((prev) => (prev === nextError ? prev : nextError));
+
     if (leaveQueueMutation.error) {
       console.error("Leave queue error:", leaveQueueMutation.error);
       // Leave queue error'ı kullanıcıya göstermeyiz (silent fail)
@@ -94,6 +99,7 @@ export function useHomePageLogic() {
     cancelInviteMutation.error,
     enterQueueMutation.error,
     leaveQueueMutation.error,
+    setError,
   ]);
 
   // Computed values
@@ -141,7 +147,8 @@ export function useHomePageLogic() {
   // Matchmaking actions
   const onEnterQueue = () => {
     setError(null);
-    enterQueueMutation.mutate(undefined);
+    // Random matchmaking: kategori sabit MATEMATIK
+    enterQueueMutation.mutate("MATEMATIK");
   };
 
   const onLeaveQueue = () => {
@@ -165,7 +172,7 @@ export function useHomePageLogic() {
   useEffect(() => {
     if (queueStatus !== "QUEUED" || enterQueueMutation.isPending) return;
 
-    const POLL_INTERVAL_MS = 4000; // 4 saniye
+    const POLL_INTERVAL_MS = 2000; // 2 saniye (bot threshold 5s için daha hızlı polling)
     const MAX_POLL_TIME_MS = 60000; // 60 saniye max
 
     let pollCount = 0;
@@ -185,8 +192,8 @@ export function useHomePageLogic() {
         return;
       }
 
-      // Mutation kullanarak polling yap
-      enterQueueMutation.mutate(undefined, {
+      // Mutation kullanarak polling yap (kategori sabit MATEMATIK)
+      enterQueueMutation.mutate("MATEMATIK", {
         onSuccess: (result) => {
           if (isCleanedUp) return;
 
@@ -213,13 +220,28 @@ export function useHomePageLogic() {
   }, [queueStatus, setQueueState, resetQueue, setError]);
 
   // Sayfadan ayrılırken queue'yu temizle (cleanup)
+  // IMPORTANT: cleanup effect'i dependency değiştikçe çalışmasın diye isQueuing'i ref'te tutuyoruz.
+  const isQueuingRef = useRef<boolean>(isQueuing);
+  useEffect(() => {
+    isQueuingRef.current = isQueuing;
+  }, [isQueuing]);
+
+  // leaveQueueMutation.mutate referansı bazı ortamlarda render'lar arasında değişebiliyor.
+  // Onu dep'e koyarsak cleanup sürekli çalışır ve queue ticket'ını spam ile siler.
+  // Bu yüzden mutate'i ref'te tutup cleanup'u SADECE unmount'ta çalıştırıyoruz.
+  const leaveQueueMutateRef = useRef(leaveQueueMutation.mutate);
+  useEffect(() => {
+    leaveQueueMutateRef.current = leaveQueueMutation.mutate;
+  }, [leaveQueueMutation.mutate]);
+
   useEffect(() => {
     return () => {
-      if (isQueuing) {
-        leaveQueueMutation.mutate(undefined);
+      if (isQueuingRef.current) {
+        leaveQueueMutateRef.current(undefined);
       }
     };
-  }, [isQueuing, leaveQueueMutation]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Busy states (from mutations)
   const busy =

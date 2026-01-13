@@ -26,9 +26,14 @@ import { assignToLeague } from "../league/assignToLeague";
 
 type MatchDoc = {
   status: "WAITING" | "ACTIVE" | "FINISHED";
+  mode?: "SYNC_DUEL";
   players?: string[];
   winnerUid?: string;
   stateByUid?: Record<string, { trophies?: number; wrongCount?: number; answeredCount?: number; symbols?: string[] }>;
+  syncDuel?: {
+    roundWins?: Record<string, number>;
+    category?: string;
+  };
   progression?: { phase1ProcessedAt?: FirebaseFirestore.Timestamp };
   playerTypes?: Record<string, "HUMAN" | "BOT">;
 };
@@ -53,11 +58,11 @@ function updatePlayerInBucket(players: LeaguePlayerEntry[], uid: string, delta: 
 }
 
 /**
- * Calculate category stats updates from earned symbols.
+ * Calculate category stats updates from earned symbols (async duel).
  * Her kazanılan symbol = 2 doğru cevap (Q1 + Q2).
  * Returns Firestore update object for categoryStats.
  */
-function buildCategoryStatsUpdate(symbols: string[]): Record<string, FirebaseFirestore.FieldValue> {
+function buildCategoryStatsUpdateFromSymbols(symbols: string[]): Record<string, FirebaseFirestore.FieldValue> {
   const updates: Record<string, FirebaseFirestore.FieldValue> = {};
   
   for (const symbol of symbols) {
@@ -69,6 +74,28 @@ function buildCategoryStatsUpdate(symbols: string[]): Record<string, FirebaseFir
   return updates;
 }
 
+/**
+ * Calculate category stats updates from round wins (sync duel).
+ * Her round win = 1 doğru cevap (tek soru var her round'da).
+ * Returns Firestore update object for categoryStats.
+ */
+function buildCategoryStatsUpdateFromRoundWins(
+  category: string | null,
+  roundWins: number
+): Record<string, FirebaseFirestore.FieldValue> {
+  const updates: Record<string, FirebaseFirestore.FieldValue> = {};
+  
+  if (!category) return updates; // Category yoksa skip
+  
+  // Her round win = 1 doğru cevap (tek soru var her round'da)
+  updates[`categoryStats.${category}.correct`] = FieldValue.increment(roundWins);
+  // Total: Her round'da soru cevaplandı (round sayısı kadar total)
+  // Not: Bu bilgiyi syncDuel'de tutmuyoruz, şimdilik roundWins kadar total ekliyoruz
+  updates[`categoryStats.${category}.total`] = FieldValue.increment(roundWins);
+  
+  return updates;
+}
+
 // ============================================================================
 // MAIN TRIGGER
 // ============================================================================
@@ -76,7 +103,7 @@ function buildCategoryStatsUpdate(symbols: string[]): Record<string, FirebaseFir
 export const matchOnFinished = onDocumentUpdated(
   {
     document: "matches/{matchId}",
-    region: "europe-west1",
+    region: "us-central1",
   },
   async (event) => {
   const before = event.data?.before.data() as MatchDoc | undefined;
@@ -121,12 +148,28 @@ export const matchOnFinished = onDocumentUpdated(
     winnerIsBot = playerTypes[winnerUid] === "BOT";
     loserIsBot = playerTypes[loserUid] === "BOT";
 
-    // Calculate deltas from match state
+    // Calculate deltas from match state (sync duel vs async duel)
     const stateByUid = match.stateByUid ?? {};
-    const winnerMatchKupa = safeNum(stateByUid[winnerUid]?.trophies);
-    const loserMatchKupa = safeNum(stateByUid[loserUid]?.trophies);
-    const winnerDelta = winnerMatchKupa + WIN_BONUS;
-    const loserDelta = loserMatchKupa;
+    let winnerDelta: number;
+    let loserDelta: number;
+    let matchCategory: string | null = null; // For category stats
+
+    if (match.mode === "SYNC_DUEL" && match.syncDuel) {
+      // Sync duel: question-based trophy calculation (async duel mantığıyla aynı)
+      // Her doğru cevap için stateByUid[uid].trophies'e eklenen kupa + zafer bonusu
+      const winnerMatchKupa = safeNum(stateByUid[winnerUid]?.trophies);
+      const loserMatchKupa = safeNum(stateByUid[loserUid]?.trophies);
+      winnerDelta = winnerMatchKupa + WIN_BONUS;
+      loserDelta = loserMatchKupa;
+      
+      matchCategory = match.syncDuel.category ?? null;
+    } else {
+      // Async duel (deprecated, backward compatibility için tutuluyor)
+      const winnerMatchKupa = safeNum(stateByUid[winnerUid]?.trophies);
+      const loserMatchKupa = safeNum(stateByUid[loserUid]?.trophies);
+      winnerDelta = winnerMatchKupa + WIN_BONUS;
+      loserDelta = loserMatchKupa;
+    }
 
     // Read user documents (only for humans)
     const winnerSnap = winnerIsBot ? null : await tx.get(winnerRef);
@@ -190,9 +233,26 @@ export const matchOnFinished = onDocumentUpdated(
     loserNewWeeklyTrophies = loserIsBot ? 0 : ((loserData?.league.weeklyTrophies ?? 0) + loserDelta);
 
     // ========== WRITES: UPDATE USER DOCUMENTS ==========
-    // Build category stats updates from earned symbols
-    const winnerSymbols = (stateByUid[winnerUid]?.symbols ?? []) as string[];
-    const loserSymbols = (stateByUid[loserUid]?.symbols ?? []) as string[];
+    // Build category stats updates (sync duel vs async duel)
+    let winnerCategoryStats: Record<string, FirebaseFirestore.FieldValue> = {};
+    let loserCategoryStats: Record<string, FirebaseFirestore.FieldValue> = {};
+
+    if (match.mode === "SYNC_DUEL" && match.syncDuel) {
+      // Sync duel: round wins bazlı category stats
+      const roundWins = match.syncDuel.roundWins ?? {};
+      const winnerRoundWins = safeNum(roundWins[winnerUid]);
+      const loserRoundWins = safeNum(roundWins[loserUid]);
+      
+      winnerCategoryStats = buildCategoryStatsUpdateFromRoundWins(matchCategory, winnerRoundWins);
+      loserCategoryStats = buildCategoryStatsUpdateFromRoundWins(matchCategory, loserRoundWins);
+    } else {
+      // Async duel: symbols bazlı category stats
+      const winnerSymbols = (stateByUid[winnerUid]?.symbols ?? []) as string[];
+      const loserSymbols = (stateByUid[loserUid]?.symbols ?? []) as string[];
+      
+      winnerCategoryStats = buildCategoryStatsUpdateFromSymbols(winnerSymbols);
+      loserCategoryStats = buildCategoryStatsUpdateFromSymbols(loserSymbols);
+    }
 
     if (!winnerIsBot) {
       tx.update(winnerRef, {
@@ -202,7 +262,7 @@ export const matchOnFinished = onDocumentUpdated(
         "stats.totalWins": FieldValue.increment(1),
         "league.weeklyTrophies": FieldValue.increment(winnerDelta),
         "presence.activeMatchCount": winnerNewActive,
-        ...buildCategoryStatsUpdate(winnerSymbols),
+        ...winnerCategoryStats,
       });
     }
 
@@ -213,7 +273,7 @@ export const matchOnFinished = onDocumentUpdated(
         "stats.totalMatches": FieldValue.increment(1),
         "league.weeklyTrophies": FieldValue.increment(loserDelta),
         "presence.activeMatchCount": loserNewActive,
-        ...buildCategoryStatsUpdate(loserSymbols),
+        ...loserCategoryStats,
       });
     }
 

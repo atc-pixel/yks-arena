@@ -3,14 +3,15 @@
 import { useEffect, useState } from "react";
 import { onAuthStateChanged, signInAnonymously, type User } from "firebase/auth";
 import { auth } from "@/lib/firebase/client";
+import { ensureUserDoc } from "@/features/match/services/match.api";
 
 /**
  * Anonymous Authentication Hook
  * 
  * Architecture Decision:
- * - Frontend'den user profile oluşturma çağrısı YOK
- * - Backend'de Gen 1 auth.user().onCreate trigger otomatik çalışır
- * - Trigger Auth'a yazıldıktan sonra Firestore'da users/{uid} oluşturur
+ * - Production: Backend'de Gen 1 auth.user().onCreate trigger otomatik çalışır
+ * - Emulator: Gen 1 trigger çalışmadığı için callable function kullanıyoruz (geçici)
+ * - ensureUserDoc idempotent (zaten varsa ignore eder)
  * - useUser hook'u Firestore'dan real-time olarak user data'yı çeker
  */
 export function useAnonAuth() {
@@ -26,8 +27,15 @@ export function useAnonAuth() {
           return;
         }
 
-        // User Auth'da var, backend trigger otomatik olarak Firestore'da users/{uid} oluşturacak
-        // useUser hook'u real-time subscription ile bekliyor
+        // Geçici: Emulator desteği için callable function çağırıyoruz
+        // Production'da auth trigger zaten çalışıyor (idempotent, zararsız)
+        try {
+          await ensureUserDoc();
+        } catch (e) {
+          // Silent fail - auth trigger production'da zaten çalışıyor
+          console.warn("[useAnonAuth] ensureUserDoc failed (expected in production):", e);
+        }
+
         setUser(u);
         setReady(true);
       } catch (e) {

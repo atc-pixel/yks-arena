@@ -58,6 +58,8 @@ export function useUser(uid: string | null) {
     setUser(user ?? null);
   }, [user, setUser]);
 
-  return { user, loading, error: error ? new Error(error.message || "User fetch failed") : null };
+  // Error'ı re-wrap etmeyelim; her render'da new Error üretmek bazı effect'lerde
+  // dependency churn + gereksiz update döngülerine yol açabiliyor.
+  return { user, loading, error };
 }
 

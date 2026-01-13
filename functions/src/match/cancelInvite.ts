@@ -13,7 +13,7 @@ import { CancelInviteInputSchema, strictParse } from "../shared/validation";
  * - Marks invite as CANCELLED and match as CANCELLED (or CLOSED).
  */
 export const cancelInvite = onCall(
-  { region: "europe-west1" },
+  { region: "us-central1" },
   async (req) => {
     const uid = req.auth?.uid;
     if (!uid) throw new HttpsError("unauthenticated", "Login required.");

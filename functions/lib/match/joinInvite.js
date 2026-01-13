@@ -6,7 +6,7 @@ const firestore_1 = require("../utils/firestore");
 const ensure_1 = require("../users/ensure");
 const energy_1 = require("../users/energy");
 const validation_1 = require("../shared/validation");
-exports.matchJoinInvite = (0, https_1.onCall)({ region: "europe-west1" }, async (req) => {
+exports.matchJoinInvite = (0, https_1.onCall)({ region: "us-central1" }, async (req) => {
     const uid = req.auth?.uid;
     if (!uid)
         throw new https_1.HttpsError("unauthenticated", "Auth required.");
@@ -74,27 +74,39 @@ exports.matchJoinInvite = (0, https_1.onCall)({ region: "europe-west1" }, async 
             throw new https_1.HttpsError("failed-precondition", "MATCH_LIMIT_REACHED");
         // Create match when opponent joins (2 players ready)
         const now = firestore_1.Timestamp.now();
-        tx.set(matchRef, {
+        // Default category for invite matches (can be enhanced later to allow category selection)
+        const matchCategory = "BILIM";
+        // Sync duel match state initialize
+        const syncDuel = {
+            questions: [],
+            correctCounts: {
+                [hostUid]: 0,
+                [uid]: 0,
+            },
+            roundWins: {
+                [hostUid]: 0,
+                [uid]: 0,
+            },
+            currentQuestionIndex: -1,
+            matchStatus: "WAITING_PLAYERS",
+            disconnectedAt: {},
+            reconnectDeadline: {},
+            rageQuitUids: [],
+            category: matchCategory,
+        };
+        const matchDoc = {
             createdAt: now,
             status: "ACTIVE",
-            mode: "INVITE",
+            mode: "SYNC_DUEL",
             players: [hostUid, uid],
-            // host starts
-            turn: {
-                currentUid: hostUid,
-                phase: "SPIN",
-                challengeSymbol: null,
-                streak: 0,
-                activeQuestionId: null,
-                usedQuestionIds: [],
-                streakSymbol: null,
-                questionIndex: 0,
-            },
+            syncDuel,
             stateByUid: {
                 [hostUid]: { trophies: 0, symbols: [], wrongCount: 0, answeredCount: 0 },
                 [uid]: { trophies: 0, symbols: [], wrongCount: 0, answeredCount: 0 },
             },
-        });
+            playerTypes: { [hostUid]: "HUMAN", [uid]: "HUMAN" },
+        };
+        tx.set(matchRef, matchDoc);
         // Mark invite used and link to match
         tx.update(inviteRef, {
             status: "USED",

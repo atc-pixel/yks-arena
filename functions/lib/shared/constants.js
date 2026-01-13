@@ -11,7 +11,7 @@ exports.DEFAULT_CATEGORY = "BILIM";
 // MATCHMAKING CONFIG
 // ============================================================================
 /** Kullanıcı bu süre içinde eşleşmezse bot_pool dahil edilir */
-exports.BOT_INCLUSION_THRESHOLD_SECONDS = 15;
+exports.BOT_INCLUSION_THRESHOLD_SECONDS = 5;
 /** Queue'da minimum tutulacak passive bot sayısı */
 exports.MIN_BOT_POOL_SIZE = 50;
 /**

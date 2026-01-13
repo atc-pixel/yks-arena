@@ -13,6 +13,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { enterQueue, leaveQueue } from "@/features/match/services/match.api";
 import { useMatchStore } from "@/stores/matchStore";
+import type { Category } from "@/lib/validation/schemas";
 
 /**
  * Enter queue mutation
@@ -25,7 +26,7 @@ export function useEnterQueueMutation() {
   const resetQueue = useMatchStore((state) => state.resetQueue);
 
   return useMutation({
-    mutationFn: enterQueue,
+    mutationFn: (category: Category) => enterQueue(category),
     onSuccess: (data) => {
       if (data.status === "MATCHED" && data.matchId) {
         // Match bulundu, redirect et

@@ -18,7 +18,7 @@ export type CategoryKey = typeof DEFAULT_CATEGORY;
 // ============================================================================
 
 /** Kullanıcı bu süre içinde eşleşmezse bot_pool dahil edilir */
-export const BOT_INCLUSION_THRESHOLD_SECONDS = 15;
+export const BOT_INCLUSION_THRESHOLD_SECONDS = 5;
 
 /** Queue'da minimum tutulacak passive bot sayısı */
 export const MIN_BOT_POOL_SIZE = 50;

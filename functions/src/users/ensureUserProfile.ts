@@ -26,7 +26,7 @@ if (!admin.apps.length) {
  * - Gen 1 functions için CPU/memory ayarı yapılamaz (Spark planında çalışır)
  */
 export const ensureUserProfile = functions
-  .region("europe-west1")
+  .region("us-central1")
   .auth.user()
   .onCreate(async (user) => {
   try {

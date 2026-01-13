@@ -11,7 +11,7 @@
  * - strictParse kullanıyoruz (invalid input gelirse exception fırlatır)
  */
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.LeaveQueueInputSchema = exports.EnterQueueInputSchema = exports.CancelInviteInputSchema = exports.ContinueToNextQuestionInputSchema = exports.SubmitAnswerInputSchema = exports.SpinInputSchema = exports.JoinInviteInputSchema = exports.CreateInviteInputSchema = exports.ChoiceKeySchema = void 0;
+exports.TimeoutSyncDuelQuestionInputSchema = exports.SubmitSyncDuelAnswerInputSchema = exports.StartSyncDuelRoundInputSchema = exports.LeaveQueueInputSchema = exports.EnterQueueInputSchema = exports.CancelInviteInputSchema = exports.JoinInviteInputSchema = exports.CreateInviteInputSchema = exports.ChoiceKeySchema = void 0;
 exports.strictParse = strictParse;
 const zod_1 = require("zod");
 // ============================================================================
@@ -26,24 +26,27 @@ exports.CreateInviteInputSchema = zod_1.z.object({});
 exports.JoinInviteInputSchema = zod_1.z.object({
     code: zod_1.z.string().min(4).max(10),
 });
-exports.SpinInputSchema = zod_1.z.object({
-    matchId: zod_1.z.string().min(1),
-});
-exports.SubmitAnswerInputSchema = zod_1.z.object({
-    matchId: zod_1.z.string().min(1),
-    answer: exports.ChoiceKeySchema,
-});
-exports.ContinueToNextQuestionInputSchema = zod_1.z.object({
-    matchId: zod_1.z.string().min(1),
-});
 exports.CancelInviteInputSchema = zod_1.z.object({
     inviteId: zod_1.z.string().min(1),
 });
 // Matchmaking schemas
 exports.EnterQueueInputSchema = zod_1.z.object({
-// forceBot kaldırıldı - 15s sonra otomatik bot dahil edilir
+    category: zod_1.z.enum(["BILIM", "COGRAFYA", "SPOR", "MATEMATIK"]),
 });
 exports.LeaveQueueInputSchema = zod_1.z.object({});
+// Sync Duel schemas
+exports.StartSyncDuelRoundInputSchema = zod_1.z.object({
+    matchId: zod_1.z.string().min(1),
+});
+exports.SubmitSyncDuelAnswerInputSchema = zod_1.z.object({
+    matchId: zod_1.z.string().min(1),
+    roundId: zod_1.z.string().min(1),
+    answer: exports.ChoiceKeySchema,
+    clientElapsedMs: zod_1.z.number().min(0),
+});
+exports.TimeoutSyncDuelQuestionInputSchema = zod_1.z.object({
+    matchId: zod_1.z.string().min(1),
+});
 /**
  * Strict parse - error fırlatır (API input validation için)
  * Invalid input gelirse exception fırlatır, bu durumda HttpsError'a çevrilir

@@ -3,11 +3,11 @@ import { db, FieldValue, Timestamp } from "../utils/firestore";
 import { ensureUserDoc } from "../users/ensure";
 import { applyHourlyRefillTx } from "../users/energy";
 import type { UserDoc } from "../users/types";
-import type { InviteDoc } from "../shared/types";
+import type { InviteDoc, SyncDuelMatchState, Category, MatchDoc } from "../shared/types";
 import { JoinInviteInputSchema, strictParse } from "../shared/validation";
 
 export const matchJoinInvite = onCall(
-  { region: "europe-west1" },
+  { region: "us-central1" },
   async (req) => {
   const uid = req.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Auth required.");
@@ -80,29 +80,43 @@ export const matchJoinInvite = onCall(
 
     // Create match when opponent joins (2 players ready)
     const now = Timestamp.now();
-    tx.set(matchRef, {
+    
+    // Default category for invite matches (can be enhanced later to allow category selection)
+    const matchCategory: Category = "BILIM";
+    
+    // Sync duel match state initialize
+    const syncDuel: SyncDuelMatchState = {
+      questions: [],
+      correctCounts: {
+        [hostUid]: 0,
+        [uid]: 0,
+      },
+      roundWins: {
+        [hostUid]: 0,
+        [uid]: 0,
+      },
+      currentQuestionIndex: -1,
+      matchStatus: "WAITING_PLAYERS",
+      disconnectedAt: {},
+      reconnectDeadline: {},
+      rageQuitUids: [],
+      category: matchCategory,
+    };
+
+    const matchDoc: MatchDoc = {
       createdAt: now,
       status: "ACTIVE",
-      mode: "INVITE",
+      mode: "SYNC_DUEL",
       players: [hostUid, uid],
-
-      // host starts
-      turn: {
-        currentUid: hostUid,
-        phase: "SPIN",
-        challengeSymbol: null,
-        streak: 0,
-        activeQuestionId: null,
-        usedQuestionIds: [],
-        streakSymbol: null,
-        questionIndex: 0,
-      },
-
+      syncDuel,
       stateByUid: {
         [hostUid]: { trophies: 0, symbols: [], wrongCount: 0, answeredCount: 0 },
         [uid]: { trophies: 0, symbols: [], wrongCount: 0, answeredCount: 0 },
       },
-    });
+      playerTypes: { [hostUid]: "HUMAN", [uid]: "HUMAN" },
+    };
+
+    tx.set(matchRef, matchDoc);
 
     // Mark invite used and link to match
     tx.update(inviteRef, {

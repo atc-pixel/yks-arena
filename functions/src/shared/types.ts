@@ -12,8 +12,8 @@ import { Timestamp } from "firebase-admin/firestore";
 // ============================================================================
 
 export type MatchStatus = "WAITING" | "ACTIVE" | "FINISHED" | "CANCELLED";
-export type MatchMode = "RANDOM" | "INVITE";
-export type TurnPhase = "SPIN" | "QUESTION" | "RESULT" | "END";
+export type MatchMode = "SYNC_DUEL";
+export type TurnPhase = "SPIN" | "QUESTION" | "RESULT" | "END"; // DEPRECATED - async duel için kullanılıyordu
 export type SymbolKey = "BILIM" | "COGRAFYA" | "SPOR" | "MATEMATIK";
 export type ChoiceKey = "A" | "B" | "C" | "D" | "E";
 
@@ -50,12 +50,45 @@ export type MatchTurn = {
   questionIndex?: 0 | 1 | 2;
 };
 
+// ============================================================================
+// SYNC DUEL TYPES
+// ============================================================================
+
+export type SyncDuelQuestionAnswer = {
+  choice: ChoiceKey | null; // null = henüz cevap vermedi
+  isCorrect: boolean | null; // null = henüz hesaplanmadı
+  clientElapsedMs: number | null; // Client-side timing (UX için)
+  serverReceiveAt: number | null; // Server timestamp (ms)
+};
+
+export type SyncDuelQuestion = {
+  questionId: string; // Seçilen kategori soru
+  serverStartAt: number; // Server timestamp (ms) - otorite
+  answers: Record<string, SyncDuelQuestionAnswer>;
+  endedReason: "CORRECT" | "TWO_WRONG" | "TIMEOUT" | null; // Soru nasıl bitti
+  endedAt: number | null; // Soru bittiğinde
+};
+
+export type SyncDuelMatchStatus = "WAITING_PLAYERS" | "QUESTION_ACTIVE" | "QUESTION_RESULT" | "MATCH_FINISHED";
+
+export type SyncDuelMatchState = {
+  questions: SyncDuelQuestion[]; // Soru geçmişi
+  correctCounts: Record<string, number>; // { uid: correctCount } - Her oyuncunun doğru sayısı
+  roundWins?: Record<string, number>; // { uid: roundWins } - onMatchFinished için (sync duel)
+  currentQuestionIndex: number; // Kaçıncı soru (0-based)
+  matchStatus: SyncDuelMatchStatus;
+  disconnectedAt: Record<string, number | null>;
+  reconnectDeadline: Record<string, number | null>;
+  rageQuitUids: string[];
+  category: Category; // Match'in kategorisi (queue'dan gelir)
+};
+
 export type MatchDoc = {
   createdAt: Timestamp;
   status: MatchStatus;
   mode: MatchMode;
   players: string[]; // [uid1, uid2]
-  turn: MatchTurn;
+  syncDuel: SyncDuelMatchState;
   stateByUid: Record<string, PlayerState>;
   winnerUid?: string;
   endedReason?: string;
@@ -121,9 +154,10 @@ export type QueueTicketStatus = "WAITING" | "MATCHED" | "EXPIRED";
 
 export interface QueueTicket {
   uid: string;
-  createdAt: any; // Firestore Timestamp
+  createdAt: Timestamp; // Firestore Timestamp (admin)
   status: "WAITING" | "MATCHED";
-  skillVector: number[]; // Bu satırın olduğundan emin ol
+  skillVector: number[];
+  category: Category; // Seçilen kategori
   isBot: boolean;
   botDifficulty?: number;
 }

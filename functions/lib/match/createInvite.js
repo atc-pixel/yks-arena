@@ -17,7 +17,7 @@ async function allocateInviteCode(len = 6, tries = 5) {
     }
     throw new https_1.HttpsError("internal", "Failed to allocate invite code.");
 }
-exports.matchCreateInvite = (0, https_1.onCall)({ region: "europe-west1" }, async (req) => {
+exports.matchCreateInvite = (0, https_1.onCall)({ region: "us-central1" }, async (req) => {
     const uid = req.auth?.uid;
     if (!uid)
         throw new https_1.HttpsError("unauthenticated", "Auth required.");

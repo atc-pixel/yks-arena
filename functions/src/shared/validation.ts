@@ -29,29 +29,32 @@ export const JoinInviteInputSchema = z.object({
   code: z.string().min(4).max(10),
 });
 
-export const SpinInputSchema = z.object({
-  matchId: z.string().min(1),
-});
-
-export const SubmitAnswerInputSchema = z.object({
-  matchId: z.string().min(1),
-  answer: ChoiceKeySchema,
-});
-
-export const ContinueToNextQuestionInputSchema = z.object({
-  matchId: z.string().min(1),
-});
-
 export const CancelInviteInputSchema = z.object({
   inviteId: z.string().min(1),
 });
 
 // Matchmaking schemas
 export const EnterQueueInputSchema = z.object({
-  // forceBot kaldırıldı - 15s sonra otomatik bot dahil edilir
+  category: z.enum(["BILIM", "COGRAFYA", "SPOR", "MATEMATIK"]),
 });
 
 export const LeaveQueueInputSchema = z.object({});
+
+// Sync Duel schemas
+export const StartSyncDuelRoundInputSchema = z.object({
+  matchId: z.string().min(1),
+});
+
+export const SubmitSyncDuelAnswerInputSchema = z.object({
+  matchId: z.string().min(1),
+  roundId: z.string().min(1),
+  answer: ChoiceKeySchema,
+  clientElapsedMs: z.number().min(0),
+});
+
+export const TimeoutSyncDuelQuestionInputSchema = z.object({
+  matchId: z.string().min(1),
+});
 
 // ============================================================================
 // TYPE EXPORTS
@@ -59,12 +62,12 @@ export const LeaveQueueInputSchema = z.object({});
 
 export type CreateInviteInput = z.infer<typeof CreateInviteInputSchema>;
 export type JoinInviteInput = z.infer<typeof JoinInviteInputSchema>;
-export type SpinInput = z.infer<typeof SpinInputSchema>;
-export type SubmitAnswerInput = z.infer<typeof SubmitAnswerInputSchema>;
-export type ContinueToNextQuestionInput = z.infer<typeof ContinueToNextQuestionInputSchema>;
 export type CancelInviteInput = z.infer<typeof CancelInviteInputSchema>;
 export type EnterQueueInput = z.infer<typeof EnterQueueInputSchema>;
 export type LeaveQueueInput = z.infer<typeof LeaveQueueInputSchema>;
+export type StartSyncDuelRoundInput = z.infer<typeof StartSyncDuelRoundInputSchema>;
+export type SubmitSyncDuelAnswerInput = z.infer<typeof SubmitSyncDuelAnswerInputSchema>;
+export type TimeoutSyncDuelQuestionInput = z.infer<typeof TimeoutSyncDuelQuestionInputSchema>;
 
 /**
  * Strict parse - error fırlatır (API input validation için)
