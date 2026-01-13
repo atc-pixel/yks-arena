@@ -117,6 +117,8 @@ exports.matchStartSyncDuelQuestion = (0, https_1.onCall)({ region: constants_1.F
             },
             endedReason: null,
             endedAt: null,
+            pendingWinnerUid: null,
+            decisionAt: null,
         };
         // Update match
         tx.update(matchRef, {

@@ -168,9 +168,19 @@ export function useHomePageLogic() {
       ? "Şu an yeni maç başlatamazsın."
       : null;
 
-  // Queue polling mechanism (QUEUED durumunda 4 saniyede bir enterQueue çağır)
+  // Queue polling mechanism (QUEUED durumunda enterQueue'yu periyodik çağır)
+  // Not: İlk enterQueue çağrısından dönen onSuccess queueStatus=QUEUED yazar.
+  // Ama o sırada mutation isPending true kalırsa, effect guard'ları yüzünden polling hiç başlamayabilir.
+  // Bu yüzden mutate/isPending'i ref'lerle okuyoruz (stale closure / dep problemi yok).
+  const enterQueueMutateRef = useRef(enterQueueMutation.mutate);
+  const enterQueuePendingRef = useRef(enterQueueMutation.isPending);
   useEffect(() => {
-    if (queueStatus !== "QUEUED" || enterQueueMutation.isPending) return;
+    enterQueueMutateRef.current = enterQueueMutation.mutate;
+    enterQueuePendingRef.current = enterQueueMutation.isPending;
+  }, [enterQueueMutation.mutate, enterQueueMutation.isPending]);
+
+  useEffect(() => {
+    if (queueStatus !== "QUEUED") return;
 
     const POLL_INTERVAL_MS = 2000; // 2 saniye (bot threshold 5s için daha hızlı polling)
     const MAX_POLL_TIME_MS = 60000; // 60 saniye max
@@ -180,7 +190,7 @@ export function useHomePageLogic() {
     let isCleanedUp = false;
 
     const pollInterval = setInterval(() => {
-      if (isCleanedUp || enterQueueMutation.isPending) return;
+      if (isCleanedUp || enterQueuePendingRef.current) return;
 
       pollCount++;
       if (pollCount > maxPolls) {
@@ -193,7 +203,7 @@ export function useHomePageLogic() {
       }
 
       // Mutation kullanarak polling yap (kategori sabit MATEMATIK)
-      enterQueueMutation.mutate("MATEMATIK", {
+      enterQueueMutateRef.current("MATEMATIK", {
         onSuccess: (result) => {
           if (isCleanedUp) return;
 
@@ -216,7 +226,6 @@ export function useHomePageLogic() {
       isCleanedUp = true;
       clearInterval(pollInterval);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [queueStatus, setQueueState, resetQueue, setError]);
 
   // Sayfadan ayrılırken queue'yu temizle (cleanup)

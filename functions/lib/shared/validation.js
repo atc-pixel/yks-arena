@@ -11,7 +11,7 @@
  * - strictParse kullanıyoruz (invalid input gelirse exception fırlatır)
  */
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.TimeoutSyncDuelQuestionInputSchema = exports.SubmitSyncDuelAnswerInputSchema = exports.StartSyncDuelRoundInputSchema = exports.LeaveQueueInputSchema = exports.EnterQueueInputSchema = exports.CancelInviteInputSchema = exports.JoinInviteInputSchema = exports.CreateInviteInputSchema = exports.ChoiceKeySchema = void 0;
+exports.FinalizeSyncDuelDecisionInputSchema = exports.GetServerTimeInputSchema = exports.TimeoutSyncDuelQuestionInputSchema = exports.SubmitSyncDuelAnswerInputSchema = exports.StartSyncDuelRoundInputSchema = exports.LeaveQueueInputSchema = exports.EnterQueueInputSchema = exports.CancelInviteInputSchema = exports.JoinInviteInputSchema = exports.CreateInviteInputSchema = exports.ChoiceKeySchema = void 0;
 exports.strictParse = strictParse;
 const zod_1 = require("zod");
 // ============================================================================
@@ -45,6 +45,12 @@ exports.SubmitSyncDuelAnswerInputSchema = zod_1.z.object({
     clientElapsedMs: zod_1.z.number().min(0),
 });
 exports.TimeoutSyncDuelQuestionInputSchema = zod_1.z.object({
+    matchId: zod_1.z.string().min(1),
+});
+// Time Sync schema (empty input)
+exports.GetServerTimeInputSchema = zod_1.z.object({});
+// Sync Duel decision finalize (cleanup fallback)
+exports.FinalizeSyncDuelDecisionInputSchema = zod_1.z.object({
     matchId: zod_1.z.string().min(1),
 });
 /**

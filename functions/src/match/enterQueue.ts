@@ -14,6 +14,43 @@ const MATCH_QUEUE_COLLECTION = "match_queue";
 const MATCHES_COLLECTION = "matches";
 const USERS_COLLECTION = "users";
 
+// #region agent log
+function __agentLog(hypothesisId: string, location: string, message: string, data: Record<string, unknown> = {}) {
+  try {
+    console.log(
+      JSON.stringify({
+        sessionId: "debug-session",
+        runId: "pre-fix",
+        hypothesisId,
+        location,
+        message,
+        data,
+        timestamp: Date.now(),
+      })
+    );
+  } catch {
+    // ignore
+  }
+}
+function __agentErr(hypothesisId: string, location: string, message: string, data: Record<string, unknown> = {}) {
+  try {
+    console.error(
+      JSON.stringify({
+        sessionId: "debug-session",
+        runId: "pre-fix",
+        hypothesisId,
+        location,
+        message,
+        data,
+        timestamp: Date.now(),
+      })
+    );
+  } catch {
+    // ignore
+  }
+}
+// #endregion
+
 type BestMatchFromQueue = QueueTicket & { source: "queue"; id: string };
 type BestMatchFromBotPool = BotPoolEntry & { source: "bot_pool"; id: string; isBot: true };
 type BestMatch = BestMatchFromQueue | BestMatchFromBotPool;
@@ -24,10 +61,31 @@ export const matchEnterQueue = onCall(
   { region: FUNCTIONS_REGION },
   async (req) => {
   const uid = req.auth?.uid;
+  __agentLog("H2", "functions/src/match/enterQueue.ts:entry", "matchEnterQueue called", {
+    hasAuth: !!uid,
+    dataType: typeof req.data,
+  });
   if (!uid) throw new HttpsError("unauthenticated", "Auth required.");
 
-  const { category } = strictParse(EnterQueueInputSchema, req.data, "matchEnterQueue");
-  await ensureUserDoc(uid);
+  let category: Category;
+  try {
+    ({ category } = strictParse(EnterQueueInputSchema, req.data, "matchEnterQueue"));
+  } catch (e) {
+    __agentErr("H2", "functions/src/match/enterQueue.ts:parse_error", "EnterQueueInputSchema parse failed", {
+      err: e instanceof Error ? e.message : String(e),
+    });
+    throw e; // preserve current behavior
+  }
+  __agentLog("H2", "functions/src/match/enterQueue.ts:parsed", "input parsed", { category });
+
+  try {
+    await ensureUserDoc(uid);
+  } catch (e) {
+    __agentErr("H3", "functions/src/match/enterQueue.ts:ensureUserDoc_error", "ensureUserDoc failed", {
+      err: e instanceof Error ? e.message : String(e),
+    });
+    throw e;
+  }
 
   // Bot havuzu bakımı (fire-and-forget)
   ensureBotPool().catch((e) => console.error("[BotPool] Maintenance failed:", e));
@@ -39,9 +97,26 @@ export const matchEnterQueue = onCall(
 
     const userData = userSnap.data() as UserDoc & { categoryStats?: UserCategoryStats };
     const nowMs = Date.now();
+    __agentLog("H3", "functions/src/match/enterQueue.ts:tx:user_loaded", "user loaded in TX", {
+      uid,
+      trophies: Number(userData?.trophies ?? 0),
+      activeMatchCount: Number(userData?.presence?.activeMatchCount ?? 0),
+    });
     
+    // Firestore TX rule: ALL reads must happen before ANY writes.
+    // Read ticket + candidates BEFORE applyHourlyRefillTx (writes).
+    const ticketRef = db.collection(MATCH_QUEUE_COLLECTION).doc(uid);
+    const ticketSnap = await tx.get(ticketRef);
+
+    const queueCandidatesSnap = await tx.get(
+      db.collection(MATCH_QUEUE_COLLECTION)
+        .where("status", "==", "WAITING")
+        .limit(10)
+    );
+
     // Enerji kontrolü
     const { energyAfter: energy } = applyHourlyRefillTx({ tx, userRef, userData, nowMs });
+    __agentLog("H3", "functions/src/match/enterQueue.ts:tx:energy_checked", "energy checked", { uid, energy });
     if (energy <= 0) throw new HttpsError("failed-precondition", "ENERGY_ZERO");
 
     const currentTrophies = userData.trophies ?? 0;
@@ -51,23 +126,20 @@ export const matchEnterQueue = onCall(
     });
 
     // Kuyruk bileti kontrolü
-    const ticketRef = db.collection(MATCH_QUEUE_COLLECTION).doc(uid);
-    const ticketSnap = await tx.get(ticketRef);
-    
     let waitSeconds = 0;
     const nowTimestamp = Timestamp.now();
     if (ticketSnap.exists) {
       const ticketData = ticketSnap.data() as QueueTicket;
       waitSeconds = nowTimestamp.seconds - ticketData.createdAt.seconds;
     }
+    __agentLog("H4", "functions/src/match/enterQueue.ts:tx:candidates_snapshot", "candidates snapshot", {
+      uid,
+      ticketExisted: ticketSnap.exists,
+      waitSeconds,
+      candidatesCount: queueCandidatesSnap.size,
+    });
 
     // Aday Arama
-    const queueCandidatesSnap = await tx.get(
-      db.collection(MATCH_QUEUE_COLLECTION)
-        .where("status", "==", "WAITING")
-        .limit(10)
-    );
-
     let bestMatch: BestMatch | null = null;
     let minDistance = Infinity;
 
@@ -83,6 +155,14 @@ export const matchEnterQueue = onCall(
       // HATA BURADAYDI: skillVector'ın varlığını garantiye alıyoruz
       const distance = calculateEuclideanDistance(currentUserVector, candidate.skillVector);
       const threshold = getDynamicThreshold(waitSeconds);
+      // sadece ilk adayda bir kez logla (noise olmasın)
+      if (minDistance === Infinity) {
+        __agentLog("H4", "functions/src/match/enterQueue.ts:tx:threshold", "threshold computed", {
+          uid,
+          waitSeconds,
+          threshold,
+        });
+      }
 
       if (distance <= threshold && distance < minDistance) {
         minDistance = distance;
@@ -92,6 +172,11 @@ export const matchEnterQueue = onCall(
 
     // Rakip bulunamadıysa BOT_POOL
     if (!bestMatch && waitSeconds >= BOT_INCLUSION_THRESHOLD_SECONDS) {
+      __agentLog("H3", "functions/src/match/enterQueue.ts:tx:bot_inclusion", "bot inclusion reached", {
+        uid,
+        waitSeconds,
+        threshold: BOT_INCLUSION_THRESHOLD_SECONDS,
+      });
       console.log(
         `[Matchmaking] Bot inclusion window reached (waitSeconds=${waitSeconds}, threshold=${BOT_INCLUSION_THRESHOLD_SECONDS})`
       );
@@ -130,6 +215,12 @@ export const matchEnterQueue = onCall(
     }
 
     if (bestMatch) {
+      __agentLog("H3", "functions/src/match/enterQueue.ts:tx:matched", "best match selected", {
+        uid,
+        source: bestMatch.source,
+        opponentId: bestMatch.id,
+        isBot: (bestMatch as BestMatchFromBotPool).isBot === true,
+      });
       const matchId = nanoid(20);
       const matchRef = db.collection(MATCHES_COLLECTION).doc(matchId);
 
@@ -186,6 +277,11 @@ export const matchEnterQueue = onCall(
     }
 
     // KUYRUĞA EKLE
+    __agentLog("H3", "functions/src/match/enterQueue.ts:tx:queued", "no match, queued", {
+      uid,
+      waitSeconds,
+      category,
+    });
     const newTicket: QueueTicket = {
       uid,
       createdAt: ticketSnap.exists ? (ticketSnap.data() as QueueTicket).createdAt : nowTimestamp,
@@ -199,5 +295,9 @@ export const matchEnterQueue = onCall(
     return { status: "QUEUED", matchId: null, opponentType: null, waitSeconds };
   });
 
+  __agentLog("H2", "functions/src/match/enterQueue.ts:exit", "matchEnterQueue returned", {
+    uid,
+    status: (result as { status?: unknown } | undefined)?.status ?? null,
+  });
   return result;
 });

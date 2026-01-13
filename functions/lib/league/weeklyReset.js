@@ -58,7 +58,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.weeklyReset = weeklyReset;
 const firestore_1 = require("../utils/firestore");
 const league_1 = require("../shared/types/league");
-const weeklyReset_helpers_1 = require("./weeklyReset.utils");
+const weeklyReset_utils_1 = require("./weeklyReset.utils");
 /**
  * Process a single bucket for weekly reset
  *
@@ -143,7 +143,7 @@ async function processBucket(bucketId, newSeasonId) {
             const rank = (i + 1);
             // Promotion (if not Diamond)
             if (bucket.tier !== "Diamond") {
-                const nextTier = (0, weeklyReset_helpers_1.getNextTier)(bucket.tier);
+                const nextTier = (0, weeklyReset_utils_1.getNextTier)(bucket.tier);
                 if (nextTier) {
                     // Note: assignToLeague will be called in separate transaction
                     // We just mark for promotion here
@@ -151,14 +151,14 @@ async function processBucket(bucketId, newSeasonId) {
                     // Promotion reward
                     const promotionKey = (0, league_1.getPromotionRewardKey)(bucket.tier);
                     if (promotionKey) {
-                        (0, weeklyReset_helpers_1.createClaimableReward)(tx, player.uid, promotionKey, newSeasonId);
+                        (0, weeklyReset_utils_1.createClaimableReward)(tx, player.uid, promotionKey, newSeasonId);
                         rewardsDistributed++;
                     }
                 }
             }
             // Rank reward
             const rankKey = (0, league_1.getRankRewardKey)(bucket.tier, rank);
-            (0, weeklyReset_helpers_1.createClaimableReward)(tx, player.uid, rankKey, newSeasonId);
+            (0, weeklyReset_utils_1.createClaimableReward)(tx, player.uid, rankKey, newSeasonId);
             rewardsDistributed++;
         }
         // 5. Process Bottom 5 (Demotion, only if bucket full)
@@ -168,7 +168,7 @@ async function processBucket(bucketId, newSeasonId) {
                 if (player.weeklyTrophies === 0)
                     continue;
                 if (bucket.tier !== "Bronze") {
-                    const prevTier = (0, weeklyReset_helpers_1.getPreviousTier)(bucket.tier);
+                    const prevTier = (0, weeklyReset_utils_1.getPreviousTier)(bucket.tier);
                     if (prevTier) {
                         // Note: assignToLeague will be called in separate transaction
                         demoted++;
@@ -186,7 +186,7 @@ async function processBucket(bucketId, newSeasonId) {
         // 7. Process Participation Rewards (remaining players)
         for (const player of remainingPlayers) {
             const participationKey = (0, league_1.getParticipationRewardKey)(bucket.tier);
-            (0, weeklyReset_helpers_1.createClaimableReward)(tx, player.uid, participationKey, newSeasonId);
+            (0, weeklyReset_utils_1.createClaimableReward)(tx, player.uid, participationKey, newSeasonId);
             rewardsDistributed++;
         }
         // 8. Reset bucket players (set weeklyTrophies to 0)
@@ -337,7 +337,7 @@ async function weeklyReset(params) {
             const metaData = metaSnap.data();
             const meta = league_1.LeagueMetaSchema.parse(metaData);
             currentSeasonId = meta.currentSeasonId;
-            newSeasonId = (0, weeklyReset_helpers_1.generateNextSeasonId)(meta.currentSeasonId);
+            newSeasonId = (0, weeklyReset_utils_1.generateNextSeasonId)(meta.currentSeasonId);
         }
         else {
             // First reset, start with S1
@@ -414,7 +414,7 @@ async function weeklyReset(params) {
         }
     }
     if (allUserUids.size > 0) {
-        await (0, weeklyReset_helpers_1.resetUserWeeklyTrophies)(Array.from(allUserUids));
+        await (0, weeklyReset_utils_1.resetUserWeeklyTrophies)(Array.from(allUserUids));
     }
     return {
         bucketsProcessed,

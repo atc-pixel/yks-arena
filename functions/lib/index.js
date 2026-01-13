@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.matchOnFinished = exports.ensureUserDocCallable = exports.ensureUserProfile = exports.matchLeaveQueue = exports.matchEnterQueue = exports.matchBotAutoPlay = exports.matchTimeoutSyncDuelQuestion = exports.matchSubmitSyncDuelAnswer = exports.matchStartSyncDuelQuestion = exports.cancelInvite = exports.matchJoinInvite = exports.matchCreateInvite = void 0;
+exports.matchOnFinished = exports.ensureUserDocCallable = exports.ensureUserProfile = exports.matchLeaveQueue = exports.matchEnterQueue = exports.matchFinalizeSyncDuelDecision = exports.matchGetServerTime = exports.matchBotAutoPlay = exports.matchTimeoutSyncDuelQuestion = exports.matchSubmitSyncDuelAnswer = exports.matchStartSyncDuelQuestion = exports.cancelInvite = exports.matchJoinInvite = exports.matchCreateInvite = void 0;
 // Match Invite Functions
 var createInvite_1 = require("./match/createInvite");
 Object.defineProperty(exports, "matchCreateInvite", { enumerable: true, get: function () { return createInvite_1.matchCreateInvite; } });
@@ -17,6 +17,10 @@ var timeoutSyncDuelQuestion_1 = require("./match/timeoutSyncDuelQuestion");
 Object.defineProperty(exports, "matchTimeoutSyncDuelQuestion", { enumerable: true, get: function () { return timeoutSyncDuelQuestion_1.matchTimeoutSyncDuelQuestion; } });
 var botAutoPlay_1 = require("./match/botAutoPlay");
 Object.defineProperty(exports, "matchBotAutoPlay", { enumerable: true, get: function () { return botAutoPlay_1.matchBotAutoPlay; } });
+var getServerTime_1 = require("./match/getServerTime");
+Object.defineProperty(exports, "matchGetServerTime", { enumerable: true, get: function () { return getServerTime_1.matchGetServerTime; } });
+var finalizeSyncDuelDecision_1 = require("./match/finalizeSyncDuelDecision");
+Object.defineProperty(exports, "matchFinalizeSyncDuelDecision", { enumerable: true, get: function () { return finalizeSyncDuelDecision_1.matchFinalizeSyncDuelDecision; } });
 // Matchmaking
 var enterQueue_1 = require("./match/enterQueue");
 Object.defineProperty(exports, "matchEnterQueue", { enumerable: true, get: function () { return enterQueue_1.matchEnterQueue; } });
