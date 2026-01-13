@@ -81,6 +81,7 @@ export const matchTimeoutSyncDuelQuestion = onCall(
             ...currentQuestion,
             endedReason: "CORRECT",
             endedAt: nowMs,
+            winnerUid: pendingWinnerUid,
             pendingWinnerUid: null,
             decisionAt: null,
           };
@@ -103,6 +104,7 @@ export const matchTimeoutSyncDuelQuestion = onCall(
           ...currentQuestion,
           endedReason: "TIMEOUT",
           endedAt: nowMs,
+          winnerUid: null,
         };
 
         tx.update(matchRef, {

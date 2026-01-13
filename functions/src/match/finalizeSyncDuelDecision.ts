@@ -134,6 +134,7 @@ export const matchFinalizeSyncDuelDecision = onCall(
         ...cq,
         endedReason: "CORRECT",
         endedAt: nowMs,
+        winnerUid,
         pendingWinnerUid: null,
         decisionAt: null,
       };

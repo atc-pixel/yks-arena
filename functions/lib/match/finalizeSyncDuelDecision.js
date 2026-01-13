@@ -114,6 +114,7 @@ exports.matchFinalizeSyncDuelDecision = (0, https_1.onCall)({ region: constants_
             ...cq,
             endedReason: "CORRECT",
             endedAt: nowMs,
+            winnerUid,
             pendingWinnerUid: null,
             decisionAt: null,
         };

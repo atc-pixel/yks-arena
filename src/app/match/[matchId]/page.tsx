@@ -178,12 +178,21 @@ export default function MatchPage() {
             <h2 className="text-xl font-black uppercase tracking-wide text-black">
               Soru {currentQuestionIndex + 1} Sonucu
             </h2>
-            {currentQuestion.endedReason === "CORRECT" && myAnswer?.isCorrect && (
-              <p className="mt-2 text-lg font-black text-green-600">✓ Doğru Cevap!</p>
+            {currentQuestion.endedReason === "CORRECT" && currentQuestion.winnerUid === myUid && (
+              <p className="mt-2 text-lg font-black text-green-600">✓ İlk Sen Bildin!</p>
             )}
-            {currentQuestion.endedReason === "CORRECT" && !myAnswer?.isCorrect && (
-              <p className="mt-2 text-lg font-black text-red-600">✗ Rakip Doğru Cevap Verdi</p>
-            )}
+            {currentQuestion.endedReason === "CORRECT" &&
+              currentQuestion.winnerUid !== myUid &&
+              myAnswer?.isCorrect === true && (
+                <p className="mt-2 text-lg font-black text-yellow-100">
+                  ✓ Doğruydun ama rakip daha hızlıydı
+                </p>
+              )}
+            {currentQuestion.endedReason === "CORRECT" &&
+              currentQuestion.winnerUid !== myUid &&
+              myAnswer?.isCorrect !== true && (
+                <p className="mt-2 text-lg font-black text-red-600">✗ Rakip İlk Bildi</p>
+              )}
             {currentQuestion.endedReason === "TWO_WRONG" && (
               <p className="mt-2 text-lg font-black text-yellow-600">= Her İkiniz de Yanlış</p>
             )}

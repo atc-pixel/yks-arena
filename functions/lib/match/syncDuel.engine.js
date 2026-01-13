@@ -77,6 +77,7 @@ async function applySyncDuelAnswerTx(params) {
                 ...updatedQuestion,
                 pendingWinnerUid: uid,
                 decisionAt: serverReceiveAt + GRACE_MS,
+                winnerUid: null,
                 endedReason: null,
                 endedAt: null,
             };
@@ -128,6 +129,7 @@ async function applySyncDuelAnswerTx(params) {
             ...updatedQuestion,
             endedReason: "CORRECT",
             endedAt: serverReceiveAt,
+            winnerUid,
             pendingWinnerUid: null,
             decisionAt: null,
         };
@@ -149,6 +151,7 @@ async function applySyncDuelAnswerTx(params) {
     if (otherAnswer?.choice !== null && otherAnswer?.isCorrect === false) {
         updatedQuestion.endedReason = "TWO_WRONG";
         updatedQuestion.endedAt = serverReceiveAt;
+        updatedQuestion.winnerUid = null;
         const updatedQuestions = [...syncDuel.questions];
         updatedQuestions[syncDuel.currentQuestionIndex] = updatedQuestion;
         tx.update(matchRef, {

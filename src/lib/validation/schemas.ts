@@ -125,6 +125,7 @@ export const SyncDuelQuestionSchema = z.object({
   answers: z.record(z.string(), SyncDuelQuestionAnswerSchema),
   endedReason: z.enum(["CORRECT", "TWO_WRONG", "TIMEOUT"]).nullable(),
   endedAt: z.number().nullable(),
+  winnerUid: z.string().nullable().optional(),
   pendingWinnerUid: z.string().nullable().optional(),
   decisionAt: z.number().nullable().optional(),
 });

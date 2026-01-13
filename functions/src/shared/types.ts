@@ -68,6 +68,11 @@ export type SyncDuelQuestion = {
   endedReason: "CORRECT" | "TWO_WRONG" | "TIMEOUT" | null; // Soru nasıl bitti
   endedAt: number | null; // Soru bittiğinde
   /**
+   * Soru CORRECT ile bittiğinde, puanı alan oyuncu.
+   * Not: İki oyuncu da doğru yapabilir; ama puanı sadece en hızlı alır.
+   */
+  winnerUid?: string | null;
+  /**
    * Grace window (lag compensation) için pending karar state'i.
    * - İlk doğru cevap geldiğinde set edilir.
    * - decisionAt gelince finalize edilir (ya 2. doğru ile submitAnswer içinde, ya finalize callable ile).

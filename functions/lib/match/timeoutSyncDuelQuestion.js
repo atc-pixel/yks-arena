@@ -73,6 +73,7 @@ exports.matchTimeoutSyncDuelQuestion = (0, https_1.onCall)({ region: constants_1
                     ...currentQuestion,
                     endedReason: "CORRECT",
                     endedAt: nowMs,
+                    winnerUid: pendingWinnerUid,
                     pendingWinnerUid: null,
                     decisionAt: null,
                 };
@@ -92,6 +93,7 @@ exports.matchTimeoutSyncDuelQuestion = (0, https_1.onCall)({ region: constants_1
                 ...currentQuestion,
                 endedReason: "TIMEOUT",
                 endedAt: nowMs,
+                winnerUid: null,
             };
             tx.update(matchRef, {
                 "syncDuel.questions": updatedQuestions,

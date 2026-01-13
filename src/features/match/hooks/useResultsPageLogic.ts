@@ -77,9 +77,18 @@ export function useResultsPageLogic(matchId: string) {
 
       let qWinner: string | null = null;
       if (q.endedReason === "CORRECT") {
-        const entries = Object.entries(q.answers ?? {});
-        const correct = entries.find(([, ans]) => (ans as { isCorrect?: boolean | null } | undefined)?.isCorrect === true);
-        qWinner = correct?.[0] ?? null;
+        // New: backend writes winnerUid deterministically
+        const winner = (q as { winnerUid?: unknown } | undefined)?.winnerUid;
+        if (typeof winner === "string" || winner === null) {
+          qWinner = winner;
+        } else {
+          // Backward compatibility (old matches): best-effort fallback
+          const entries = Object.entries(q.answers ?? {});
+          const correct = entries.find(
+            ([, ans]) => (ans as { isCorrect?: boolean | null } | undefined)?.isCorrect === true
+          );
+          qWinner = correct?.[0] ?? null;
+        }
       }
 
       return {
