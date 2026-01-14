@@ -96,6 +96,12 @@ export type SyncDuelMatchState = {
   matchStatus: SyncDuelMatchStatus;
   disconnectedAt: Record<string, number | null>;
   reconnectDeadline: Record<string, number | null>;
+  /**
+   * Query-friendly minimum reconnect deadline (ms).
+   * - null => no one is currently disconnected
+   * - used by scheduled rage-quit finalizer
+   */
+  reconnectDeadlineMin?: number | null;
   rageQuitUids: string[];
   category: Category; // Match'in kategorisi (queue'dan gelir)
 };

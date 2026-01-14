@@ -141,6 +141,7 @@ export const SyncDuelMatchStateSchema = z.object({
   matchStatus: SyncDuelMatchStatusSchema,
   disconnectedAt: z.record(z.string(), z.number().nullable()),
   reconnectDeadline: z.record(z.string(), z.number().nullable()),
+  reconnectDeadlineMin: z.number().nullable().optional(),
   rageQuitUids: z.array(z.string()),
   category: CategorySchema,
 });
@@ -246,6 +247,15 @@ export const GetServerTimeInputSchema = z.object({});
 
 // Sync Duel decision finalize (cleanup fallback)
 export const FinalizeSyncDuelDecisionInputSchema = z.object({
+  matchId: z.string().min(1),
+});
+
+// Sync Duel presence (best-effort)
+export const MarkSyncDuelDisconnectedInputSchema = z.object({
+  matchId: z.string().min(1),
+});
+
+export const MarkSyncDuelReconnectedInputSchema = z.object({
   matchId: z.string().min(1),
 });
 

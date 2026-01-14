@@ -20,6 +20,8 @@ const assignToLeague_1 = require("../league/assignToLeague");
 // CONSTANTS & HELPERS
 // ============================================================================
 const WIN_BONUS = 25;
+const LOSS_ENERGY_PENALTY = 1;
+const RAGE_QUIT_TROPHY_PENALTY = 30;
 /** n-1 but never negative */
 const decClamp = (n) => Math.max(0, Math.floor(n) - 1);
 /** Safe number conversion: null/undefined -> 0, floor, clamp to 0 */
@@ -109,6 +111,10 @@ exports.matchOnFinished = (0, firestore_1.onDocumentUpdated)({
         let winnerDelta;
         let loserDelta;
         let matchCategory = null; // For category stats
+        const endedReason = String(match.endedReason ?? "");
+        const isRageQuit = endedReason === "RAGE_QUIT";
+        const rageQuitUids = match.syncDuel?.rageQuitUids ?? [];
+        const loserRageQuit = isRageQuit && Array.isArray(rageQuitUids) && rageQuitUids.includes(loserUid);
         if (match.mode === "SYNC_DUEL" && match.syncDuel) {
             // Sync duel: question-based trophy calculation (async duel mantığıyla aynı)
             // Her doğru cevap için stateByUid[uid].trophies'e eklenen kupa + zafer bonusu
@@ -165,11 +171,14 @@ exports.matchOnFinished = (0, firestore_1.onDocumentUpdated)({
         const winnerOldTrophies = winnerIsBot ? 0 : Number(winnerData?.trophies ?? 0);
         const loserOldTrophies = loserIsBot ? 0 : Number(loserData?.trophies ?? 0);
         const winnerNewTrophies = (0, utils_1.clampMin)(winnerOldTrophies + winnerDelta, 0);
-        const loserNewTrophies = (0, utils_1.clampMin)(loserOldTrophies + loserDelta, 0);
+        const loserNewTrophies = (0, utils_1.clampMin)(loserOldTrophies + loserDelta - (loserRageQuit ? RAGE_QUIT_TROPHY_PENALTY : 0), 0);
         const winnerNewLevel = (0, utils_1.calcLevelFromTrophies)(winnerNewTrophies);
         const loserNewLevel = (0, utils_1.calcLevelFromTrophies)(loserNewTrophies);
         const winnerNewActive = winnerIsBot ? 0 : decClamp(Number(winnerData?.presence?.activeMatchCount ?? 0));
         const loserNewActive = loserIsBot ? 0 : decClamp(Number(loserData?.presence?.activeMatchCount ?? 0));
+        // Energy penalty: normal loss => -1 energy; rage quit already counts as loss (same -1 energy)
+        const loserOldEnergy = loserIsBot ? 0 : Number(loserData?.economy?.energy ?? 0);
+        const loserNewEnergy = (0, utils_1.clampMin)(loserOldEnergy - LOSS_ENERGY_PENALTY, 0);
         // Store for Teneke Escape (must be set before writes, only for humans)
         winnerCurrentLeague = winnerIsBot ? "BOT" : (winnerData?.league.currentLeague ?? "Teneke");
         loserCurrentLeague = loserIsBot ? "BOT" : (loserData?.league.currentLeague ?? "Teneke");
@@ -210,7 +219,8 @@ exports.matchOnFinished = (0, firestore_1.onDocumentUpdated)({
                 trophies: loserNewTrophies,
                 level: loserNewLevel,
                 "stats.totalMatches": firestore_2.FieldValue.increment(1),
-                "league.weeklyTrophies": firestore_2.FieldValue.increment(loserDelta),
+                "league.weeklyTrophies": firestore_2.FieldValue.increment(loserDelta - (loserRageQuit ? RAGE_QUIT_TROPHY_PENALTY : 0)),
+                "economy.energy": loserNewEnergy,
                 "presence.activeMatchCount": loserNewActive,
                 ...loserCategoryStats,
             });

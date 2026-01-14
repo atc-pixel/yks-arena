@@ -200,17 +200,6 @@ export default function MatchPage() {
               <p className="mt-2 text-lg font-black text-orange-600">⏱ Süre Doldu</p>
             )}
             <p className="mt-3 text-sm font-black text-black">Sonraki soru hazırlanıyor...</p>
-
-            {/* Fallback: auto-start takılırsa manuel devam */}
-            <motion.button
-              onClick={startQuestion}
-              disabled={busy !== null || !canStartQuestion}
-              whileHover={busy === null && canStartQuestion ? { scale: 1.05, y: -2 } : {}}
-              whileTap={{ scale: 0.95, y: 0 }}
-              className="mt-4 w-full rounded-xl border-4 border-black bg-yellow-300 px-5 py-4 text-base font-black uppercase tracking-wide text-black shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] transition-all disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {busy ? "Yükleniyor..." : "Sonraki Soru"}
-            </motion.button>
           </motion.div>
         )}
 

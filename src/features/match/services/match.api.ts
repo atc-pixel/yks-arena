@@ -14,6 +14,8 @@ import {
   TimeoutSyncDuelQuestionInputSchema,
   GetServerTimeInputSchema,
   FinalizeSyncDuelDecisionInputSchema,
+  MarkSyncDuelDisconnectedInputSchema,
+  MarkSyncDuelReconnectedInputSchema,
   type Category,
 } from "@/lib/validation/schemas";
 import { strictParse } from "@/lib/validation/utils";
@@ -52,6 +54,9 @@ export type FinalizeSyncDuelDecisionResponse = {
   success: boolean;
 };
 
+export type MarkSyncDuelDisconnectedResponse = { success: boolean };
+export type MarkSyncDuelReconnectedResponse = { success: boolean };
+
 // Callable names (tek yerden yönetelim)
 const FN = {
   createInvite: "matchCreateInvite",
@@ -64,6 +69,8 @@ const FN = {
   timeoutSyncDuelQuestion: "matchTimeoutSyncDuelQuestion",
   getServerTime: "matchGetServerTime",
   finalizeSyncDuelDecision: "matchFinalizeSyncDuelDecision",
+  markSyncDuelDisconnected: "matchMarkSyncDuelDisconnected",
+  markSyncDuelReconnected: "matchMarkSyncDuelReconnected",
 } as const;
 
 /**
@@ -190,6 +197,20 @@ export async function finalizeSyncDuelDecision(matchId: string) {
     functions,
     FN.finalizeSyncDuelDecision
   );
+  const res = await fn(validated);
+  return res.data;
+}
+
+export async function markSyncDuelDisconnected(matchId: string) {
+  const validated = strictParse(MarkSyncDuelDisconnectedInputSchema, { matchId }, "markSyncDuelDisconnected");
+  const fn = httpsCallable<{ matchId: string }, MarkSyncDuelDisconnectedResponse>(functions, FN.markSyncDuelDisconnected);
+  const res = await fn(validated);
+  return res.data;
+}
+
+export async function markSyncDuelReconnected(matchId: string) {
+  const validated = strictParse(MarkSyncDuelReconnectedInputSchema, { matchId }, "markSyncDuelReconnected");
+  const fn = httpsCallable<{ matchId: string }, MarkSyncDuelReconnectedResponse>(functions, FN.markSyncDuelReconnected);
   const res = await fn(validated);
   return res.data;
 }

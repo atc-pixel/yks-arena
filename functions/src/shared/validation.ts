@@ -66,6 +66,15 @@ export const FinalizeSyncDuelDecisionInputSchema = z.object({
   matchId: z.string().min(1),
 });
 
+// Presence (best-effort): mark disconnected / reconnected
+export const MarkSyncDuelDisconnectedInputSchema = z.object({
+  matchId: z.string().min(1),
+});
+
+export const MarkSyncDuelReconnectedInputSchema = z.object({
+  matchId: z.string().min(1),
+});
+
 // ============================================================================
 // TYPE EXPORTS
 // ============================================================================
@@ -80,6 +89,8 @@ export type SubmitSyncDuelAnswerInput = z.infer<typeof SubmitSyncDuelAnswerInput
 export type TimeoutSyncDuelQuestionInput = z.infer<typeof TimeoutSyncDuelQuestionInputSchema>;
 export type GetServerTimeInput = z.infer<typeof GetServerTimeInputSchema>;
 export type FinalizeSyncDuelDecisionInput = z.infer<typeof FinalizeSyncDuelDecisionInputSchema>;
+export type MarkSyncDuelDisconnectedInput = z.infer<typeof MarkSyncDuelDisconnectedInputSchema>;
+export type MarkSyncDuelReconnectedInput = z.infer<typeof MarkSyncDuelReconnectedInputSchema>;
 
 /**
  * Strict parse - error fırlatır (API input validation için)

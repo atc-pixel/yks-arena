@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.matchOnFinished = exports.ensureUserDocCallable = exports.ensureUserProfile = exports.matchLeaveQueue = exports.matchEnterQueue = exports.matchFinalizeSyncDuelDecision = exports.matchGetServerTime = exports.matchBotAutoPlay = exports.matchTimeoutSyncDuelQuestion = exports.matchSubmitSyncDuelAnswer = exports.matchStartSyncDuelQuestion = exports.cancelInvite = exports.matchJoinInvite = exports.matchCreateInvite = void 0;
+exports.matchOnFinished = exports.ensureUserDocCallable = exports.ensureUserProfile = exports.matchLeaveQueue = exports.matchEnterQueue = exports.matchFinalizeRageQuit = exports.matchMarkSyncDuelReconnected = exports.matchMarkSyncDuelDisconnected = exports.matchAutoAdvanceSyncDuel = exports.matchFinalizeSyncDuelDecision = exports.matchGetServerTime = exports.matchBotAutoPlay = exports.matchTimeoutSyncDuelQuestion = exports.matchSubmitSyncDuelAnswer = exports.matchStartSyncDuelQuestion = exports.cancelInvite = exports.matchJoinInvite = exports.matchCreateInvite = void 0;
 // Match Invite Functions
 var createInvite_1 = require("./match/createInvite");
 Object.defineProperty(exports, "matchCreateInvite", { enumerable: true, get: function () { return createInvite_1.matchCreateInvite; } });
@@ -21,6 +21,13 @@ var getServerTime_1 = require("./match/getServerTime");
 Object.defineProperty(exports, "matchGetServerTime", { enumerable: true, get: function () { return getServerTime_1.matchGetServerTime; } });
 var finalizeSyncDuelDecision_1 = require("./match/finalizeSyncDuelDecision");
 Object.defineProperty(exports, "matchFinalizeSyncDuelDecision", { enumerable: true, get: function () { return finalizeSyncDuelDecision_1.matchFinalizeSyncDuelDecision; } });
+var autoAdvanceSyncDuel_1 = require("./match/autoAdvanceSyncDuel");
+Object.defineProperty(exports, "matchAutoAdvanceSyncDuel", { enumerable: true, get: function () { return autoAdvanceSyncDuel_1.matchAutoAdvanceSyncDuel; } });
+var presenceSyncDuel_1 = require("./match/presenceSyncDuel");
+Object.defineProperty(exports, "matchMarkSyncDuelDisconnected", { enumerable: true, get: function () { return presenceSyncDuel_1.matchMarkSyncDuelDisconnected; } });
+Object.defineProperty(exports, "matchMarkSyncDuelReconnected", { enumerable: true, get: function () { return presenceSyncDuel_1.matchMarkSyncDuelReconnected; } });
+var finalizeRageQuit_1 = require("./match/finalizeRageQuit");
+Object.defineProperty(exports, "matchFinalizeRageQuit", { enumerable: true, get: function () { return finalizeRageQuit_1.matchFinalizeRageQuit; } });
 // Matchmaking
 var enterQueue_1 = require("./match/enterQueue");
 Object.defineProperty(exports, "matchEnterQueue", { enumerable: true, get: function () { return enterQueue_1.matchEnterQueue; } });

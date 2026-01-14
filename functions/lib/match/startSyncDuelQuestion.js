@@ -13,45 +13,7 @@ const https_1 = require("firebase-functions/v2/https");
 const firestore_1 = require("../utils/firestore");
 const validation_1 = require("../shared/validation");
 const constants_1 = require("../shared/constants");
-const RANDOM_ID_MAX = 10_000_000;
-function randInt(maxExclusive) {
-    return Math.floor(Math.random() * maxExclusive);
-}
-/**
- * Random ID Inequality pattern inside a transaction.
- * Avoids usedQuestionIds with retries.
- */
-async function pickRandomQuestionIdTx(params) {
-    const { tx, category, used, maxAttempts = 14 } = params;
-    for (let attempt = 0; attempt < maxAttempts; attempt++) {
-        const r = randInt(RANDOM_ID_MAX);
-        let q = firestore_1.db
-            .collection("questions")
-            .where("isActive", "==", true)
-            .where("category", "==", category)
-            .where("randomId", ">=", r)
-            .orderBy("randomId", "asc")
-            .limit(1);
-        let snap = await tx.get(q);
-        if (snap.empty) {
-            q = firestore_1.db
-                .collection("questions")
-                .where("isActive", "==", true)
-                .where("category", "==", category)
-                .where("randomId", "<", r)
-                .orderBy("randomId", "desc")
-                .limit(1);
-            snap = await tx.get(q);
-        }
-        if (snap.empty) {
-            continue;
-        }
-        const id = snap.docs[0].id;
-        if (!used.has(id))
-            return id;
-    }
-    throw new https_1.HttpsError("resource-exhausted", `No unused questions available for category "${category}" (randomId retries exhausted).`);
-}
+const syncDuelStart_logic_1 = require("./syncDuelStart.logic");
 exports.matchStartSyncDuelQuestion = (0, https_1.onCall)({ region: constants_1.FUNCTIONS_REGION }, async (req) => {
     const uid = req.auth?.uid;
     if (!uid)
@@ -70,67 +32,7 @@ exports.matchStartSyncDuelQuestion = (0, https_1.onCall)({ region: constants_1.F
             throw new https_1.HttpsError("failed-precondition", "Not a sync duel match");
         if (match.status !== "ACTIVE")
             throw new https_1.HttpsError("failed-precondition", "Match not active");
-        const syncDuel = match.syncDuel;
-        if (!syncDuel)
-            throw new https_1.HttpsError("internal", "SyncDuel state missing");
-        // Question sonu kontrolü - sadece QUESTION_RESULT veya WAITING_PLAYERS'da yeni soru başlatılabilir
-        if (syncDuel.matchStatus === "QUESTION_ACTIVE") {
-            // Idempotency: aynı anda 2 client "start" çağırırsa ikinci çağrıyı fail etmek yerine
-            // mevcut aktif soruyu geri döndür. UI zaten Firestore snapshot ile senkron olur.
-            const current = syncDuel.questions[syncDuel.currentQuestionIndex];
-            if (!current) {
-                throw new https_1.HttpsError("internal", "Invariant violated: matchStatus QUESTION_ACTIVE but current question missing");
-            }
-            return { questionId: current.questionId, serverStartAt: current.serverStartAt };
-        }
-        // Match bitmiş mi kontrolü (3 doğru)
-        const correctCounts = syncDuel.correctCounts ?? {};
-        const [uid1, uid2] = match.players;
-        if ((correctCounts[uid1] ?? 0) >= 3 || (correctCounts[uid2] ?? 0) >= 3) {
-            throw new https_1.HttpsError("failed-precondition", "Match already finished");
-        }
-        // Soru seçimi (kullanılmamış)
-        const usedQuestionIds = new Set(syncDuel.questions.map((q) => q.questionId));
-        const questionId = await pickRandomQuestionIdTx({
-            tx,
-            category: syncDuel.category,
-            used: usedQuestionIds,
-        });
-        // Yeni soru oluştur
-        const newQuestionIndex = syncDuel.currentQuestionIndex + 1;
-        const newQuestion = {
-            questionId,
-            serverStartAt: nowMs, // Server otorite - timestamp
-            answers: {
-                [uid1]: {
-                    choice: null,
-                    isCorrect: null,
-                    clientElapsedMs: null,
-                    serverReceiveAt: null,
-                },
-                [uid2]: {
-                    choice: null,
-                    isCorrect: null,
-                    clientElapsedMs: null,
-                    serverReceiveAt: null,
-                },
-            },
-            endedReason: null,
-            endedAt: null,
-            pendingWinnerUid: null,
-            decisionAt: null,
-        };
-        // Update match
-        tx.update(matchRef, {
-            "syncDuel.questions": [...syncDuel.questions, newQuestion],
-            "syncDuel.currentQuestionIndex": newQuestionIndex,
-            "syncDuel.matchStatus": "QUESTION_ACTIVE",
-        });
-        // Return: Client'a gönderilecek payload
-        return {
-            questionId,
-            serverStartAt: nowMs, // Client'a gönder
-        };
+        return await (0, syncDuelStart_logic_1.startSyncDuelQuestionTx)({ tx, matchRef, match, nowMs });
     });
     return result;
 });

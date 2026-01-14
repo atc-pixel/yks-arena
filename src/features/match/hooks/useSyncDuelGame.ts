@@ -23,6 +23,7 @@ import {
   useTimeoutSyncDuelQuestionMutation,
   useFinalizeSyncDuelDecisionMutation,
 } from "@/features/match/hooks/useMatchMutations.rq";
+import { markSyncDuelDisconnected, markSyncDuelReconnected } from "@/features/match/services/match.api";
 import type { ChoiceKey, MatchDoc } from "@/lib/validation/schemas";
 
 export function useSyncDuelGame(matchId: string) {
@@ -94,6 +95,51 @@ export function useSyncDuelGame(matchId: string) {
       router.push(`/results/${matchId}`);
     }
   }, [match?.status, matchId, router]);
+
+  // Presence (best-effort): mark disconnected/reconnected with server deadline.
+  useEffect(() => {
+    if (!matchId) return;
+
+    let disconnectedSent = false;
+
+    const sendDisconnected = () => {
+      if (disconnectedSent) return;
+      disconnectedSent = true;
+      // fire-and-forget: page may be closing
+      void markSyncDuelDisconnected(matchId).catch(() => {});
+    };
+
+    const sendReconnected = () => {
+      disconnectedSent = false;
+      void markSyncDuelReconnected(matchId).catch(() => {});
+    };
+
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") sendDisconnected();
+      if (document.visibilityState === "visible") sendReconnected();
+    };
+
+    const onPageHide = () => sendDisconnected();
+    const onOffline = () => sendDisconnected();
+    const onOnline = () => sendReconnected();
+
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("pagehide", onPageHide);
+    window.addEventListener("offline", onOffline);
+    window.addEventListener("online", onOnline);
+
+    // initial
+    if (typeof document !== "undefined" && document.visibilityState === "visible") {
+      sendReconnected();
+    }
+
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("pagehide", onPageHide);
+      window.removeEventListener("offline", onOffline);
+      window.removeEventListener("online", onOnline);
+    };
+  }, [matchId]);
 
   // Non-critical errors (idempotency / multi-client race) - sadece dev'de log
   useEffect(() => {

@@ -229,10 +229,25 @@ export default function ResultsPage() {
             <div className="rounded-lg border-2 border-black bg-neutral-100 p-3 text-xs font-mono text-black">
               <div>matchId: {matchId}</div>
               <div>status: {match.status}</div>
+              <div>endedReason: {(match.endedReason as string | undefined) ?? "—"}</div>
               <div>winnerUid: {match.winnerUid ?? "—"}</div>
+              <div>players: {(match.players ?? []).join(", ") || "—"}</div>
+              <div>playerTypes: {match.playerTypes ? JSON.stringify(match.playerTypes) : "—"}</div>
               <div>syncDuel.matchStatus: {match.syncDuel?.matchStatus ?? "—"}</div>
               <div>currentQuestionIndex: {(match.syncDuel?.currentQuestionIndex ?? -1) + 1}</div>
+              <div>reconnectDeadlineMin: {match.syncDuel?.reconnectDeadlineMin ?? "—"}</div>
+              <div>rageQuitUids: {match.syncDuel?.rageQuitUids?.length ? match.syncDuel.rageQuitUids.join(", ") : "—"}</div>
             </div>
+            <pre className="overflow-auto rounded-lg border-2 border-black bg-neutral-100 p-3 text-xs font-mono text-black">
+              {JSON.stringify(
+                {
+                  disconnectedAt: match.syncDuel?.disconnectedAt ?? null,
+                  reconnectDeadline: match.syncDuel?.reconnectDeadline ?? null,
+                },
+                null,
+                2
+              )}
+            </pre>
             <pre className="overflow-auto rounded-lg border-2 border-black bg-neutral-100 p-4 text-xs font-mono text-black">
               {JSON.stringify(match.syncDuel, null, 2)}
             </pre>

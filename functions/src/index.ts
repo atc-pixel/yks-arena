@@ -10,6 +10,9 @@ export { matchTimeoutSyncDuelQuestion } from "./match/timeoutSyncDuelQuestion";
 export { matchBotAutoPlay } from "./match/botAutoPlay";
 export { matchGetServerTime } from "./match/getServerTime";
 export { matchFinalizeSyncDuelDecision } from "./match/finalizeSyncDuelDecision";
+export { matchAutoAdvanceSyncDuel } from "./match/autoAdvanceSyncDuel";
+export { matchMarkSyncDuelDisconnected, matchMarkSyncDuelReconnected } from "./match/presenceSyncDuel";
+export { matchFinalizeRageQuit } from "./match/finalizeRageQuit";
 
 // Matchmaking
 export { matchEnterQueue } from "./match/enterQueue";

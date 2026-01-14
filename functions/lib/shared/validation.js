@@ -11,7 +11,7 @@
  * - strictParse kullanıyoruz (invalid input gelirse exception fırlatır)
  */
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.FinalizeSyncDuelDecisionInputSchema = exports.GetServerTimeInputSchema = exports.TimeoutSyncDuelQuestionInputSchema = exports.SubmitSyncDuelAnswerInputSchema = exports.StartSyncDuelRoundInputSchema = exports.LeaveQueueInputSchema = exports.EnterQueueInputSchema = exports.CancelInviteInputSchema = exports.JoinInviteInputSchema = exports.CreateInviteInputSchema = exports.ChoiceKeySchema = void 0;
+exports.MarkSyncDuelReconnectedInputSchema = exports.MarkSyncDuelDisconnectedInputSchema = exports.FinalizeSyncDuelDecisionInputSchema = exports.GetServerTimeInputSchema = exports.TimeoutSyncDuelQuestionInputSchema = exports.SubmitSyncDuelAnswerInputSchema = exports.StartSyncDuelRoundInputSchema = exports.LeaveQueueInputSchema = exports.EnterQueueInputSchema = exports.CancelInviteInputSchema = exports.JoinInviteInputSchema = exports.CreateInviteInputSchema = exports.ChoiceKeySchema = void 0;
 exports.strictParse = strictParse;
 const zod_1 = require("zod");
 // ============================================================================
@@ -53,6 +53,13 @@ exports.TimeoutSyncDuelQuestionInputSchema = zod_1.z.object({
 exports.GetServerTimeInputSchema = zod_1.z.object({});
 // Sync Duel decision finalize (cleanup fallback)
 exports.FinalizeSyncDuelDecisionInputSchema = zod_1.z.object({
+    matchId: zod_1.z.string().min(1),
+});
+// Presence (best-effort): mark disconnected / reconnected
+exports.MarkSyncDuelDisconnectedInputSchema = zod_1.z.object({
+    matchId: zod_1.z.string().min(1),
+});
+exports.MarkSyncDuelReconnectedInputSchema = zod_1.z.object({
     matchId: zod_1.z.string().min(1),
 });
 /**
