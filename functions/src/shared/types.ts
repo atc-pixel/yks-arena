@@ -179,6 +179,11 @@ export interface QueueTicket {
   uid: string;
   createdAt: Timestamp; // Firestore Timestamp (admin)
   status: "WAITING" | "MATCHED";
+  /**
+   * Idempotency: Eğer bu ticket MATCHED durumuna geçtiyse, ilgili matchId burada tutulur.
+   * Böylece diğer cihaz/yeniden deneme aynı match'e yönlenir ve ikinci match yaratılmaz.
+   */
+  matchedMatchId?: string | null;
   skillVector: number[];
   category: Category; // Seçilen kategori
   isBot: boolean;

@@ -67,6 +67,12 @@ export const matchEnterQueue = onCall(
     const nowTimestamp = Timestamp.now();
     if (ticketSnap.exists) {
       const ticketData = ticketSnap.data() as QueueTicket;
+      // Idempotency: Eğer bu kullanıcı başka bir TX tarafından match edildi ise,
+      // ikinci bir match yaratma (özellikle bot fallback) yerine mevcut match'e yönlendir.
+      if (ticketData.status === "MATCHED" && typeof ticketData.matchedMatchId === "string" && ticketData.matchedMatchId) {
+        tx.delete(ticketRef);
+        return { status: "MATCHED", matchId: ticketData.matchedMatchId, opponentType: null };
+      }
       waitSeconds = nowTimestamp.seconds - ticketData.createdAt.seconds;
     }
 
@@ -175,7 +181,7 @@ export const matchEnterQueue = onCall(
       tx.update(userRef, { "presence.activeMatchCount": FieldValue.increment(1) });
 
       if (bestMatch.source === "queue") {
-        tx.update(db.collection(MATCH_QUEUE_COLLECTION).doc(bestMatch.id), { status: "MATCHED" });
+        tx.update(db.collection(MATCH_QUEUE_COLLECTION).doc(bestMatch.id), { status: "MATCHED", matchedMatchId: matchId });
         if (!bestMatch.isBot) {
           tx.update(db.collection(USERS_COLLECTION).doc(bestMatch.id), { "presence.activeMatchCount": FieldValue.increment(1) });
         }
